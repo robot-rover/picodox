@@ -1,9 +1,10 @@
 [package]
-name = "picodox"
+name = "picodox-firmware"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+circular-buffer = { version = "0.1.9", default-features = false }
 cortex-m = "0.7.7"
 cortex-m-rt = "0.7.5"
 embedded-hal = "1.0.0"

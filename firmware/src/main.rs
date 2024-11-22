@@ -20,7 +20,6 @@ use rp_pico::entry;
 use panic_halt as _;
 
 // Pull in any important traits
-use rp_pico::hal::prelude::*;
 
 // A shorter alias for the Peripheral Access Crate, which provides low-level
 // register access
