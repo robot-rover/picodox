@@ -4,11 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-serde = {
-  version = "1.0",
-  default-features = false,
-  features = ["derive"],
-}
+
+[dependencies.serde]
+version = "1.0"
+default-features = false
+features = ["derive"]
 
 [dev-dependencies]
-postcard = "1.0"
+postcard = { version = "1.0", features = ['use-std'] }
