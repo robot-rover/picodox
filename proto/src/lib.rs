@@ -1,5 +1,10 @@
+#![no_std]
+
+use errors::ProtoError;
 use postcard::experimental::max_size::MaxSize;
 use serde::{Serialize, Deserialize};
+
+pub mod errors;
 
 pub trait WireSize {
     const WIRE_MAX_SIZE: usize;
@@ -27,19 +32,28 @@ pub const CURRENT_VERSION: Version = Version {
     minor: 0,
 };
 
+pub const DATA_COUNT: usize = 8;
+
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, MaxSize)]
 pub enum Command {
     Reset,
     FlashFw,
+    EchoMsg {
+        count: u16,
+    },
+    Data([u8; DATA_COUNT]),
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, MaxSize)]
 pub enum Response {
     LogMsg {
-        bytes_count: u16,
+        count: u16,
     },
-    Data([u8; 8]),
-    PacketErr,
+    EchoMsg {
+        count: u16,
+    },
+    Data([u8; DATA_COUNT]),
+    PacketErr(ProtoError),
 }
 
 
@@ -51,10 +65,10 @@ mod tests {
 
     #[test]
     fn check_enum_size() {
-        let short = Response::LogMsg { bytes_count: 12 };
+        let short = Response::LogMsg { count: 12 };
         let short_bytes = to_stdvec(&short)
             .expect("Cannot serialize short response");
-        let long = Response::Data([1u8; 8]);
+        let long = Response::Data([1u8; DATA_COUNT]);
         let long_bytes = to_stdvec(&long)
             .expect("Cannot serialize long response");
         assert_eq!(short_bytes.len(), 2);

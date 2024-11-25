@@ -1,10 +1,10 @@
-use std::{fmt::Debug, io::{BufRead, BufReader, ErrorKind, Read, Write}, time::Duration};
+use std::{cmp, fmt::Debug, io::{BufRead, BufReader, ErrorKind, Read, Write}, time::Duration};
 
 use anyhow::{anyhow, bail, Context, Result};
 use clap::{Parser, Subcommand};
 
 use crc::{Crc, CRC_8_BLUETOOTH};
-use picodox_proto::{Command, Response};
+use picodox_proto::{Command, Response, DATA_COUNT};
 use serde::{de::DeserializeOwned, Serialize};
 use serialport::SerialPort;
 
@@ -34,7 +34,7 @@ enum SubCommand {
     #[command(about = "List all serial ports")]
     ListSerial,
     #[command(about = "Send data to the mcu over serial and read its response")]
-    Serial {
+    Echo {
         #[arg(help = "The content to send")]
         msg: String,
     },
@@ -47,11 +47,12 @@ fn main() {
         SubCommand::Reset => reset(&args.device),
         SubCommand::FlashFw => flash_fw(&args.device),
         SubCommand::ListSerial => list_serial(),
-        SubCommand::Serial { msg } => send_serial(&args.device, msg.as_bytes()),
+        SubCommand::Echo { msg } => send_echo(&args.device, &msg),
     };
 
-    // TODO: Have prettier error handling
-    res.unwrap();
+    if let Err(err) = res {
+        println!("Error: {:#}", err);
+    }
 }
 
 fn reset(dev: &str) -> Result<()> {
@@ -106,28 +107,25 @@ fn recv_response<R: BufRead, D: DeserializeOwned>(port: &mut R) -> Result<D> {
     assert_eq!(end_sentinel, 0u8);
 
     // Decode COBS
-    let new_len = if let Ok(new_len) = cobs::decode_in_place(&mut read_buf) {
-        new_len
-    } else {
-        bail!("Invalid packet encountered (illegal cobs)")
-    };
-    read_buf.truncate(new_len);
+    let mut cobs_decoded =  cobs::decode_vec(&read_buf)
+        .ok().ok_or_else(|| anyhow!("Invalid packet encountered (illegal cobs) {:0x?}", read_buf))?;
+        //bail!("")
 
-    let actual_crc = if let Some(crc) = read_buf.pop() {
+    let actual_crc = if let Some(crc) = cobs_decoded.pop() {
         crc
     } else {
-        bail!("Invalid packet encountered (missing CRC)")
+        bail!("Invalid packet encountered (missing CRC) {:0x?}", read_buf)
     };
 
     // Check the CRC
-    let expect_crc = CRC.checksum(&read_buf);
+    let expect_crc = CRC.checksum(&cobs_decoded);
     if expect_crc != actual_crc {
-        bail!("Invalid packet CRC (actual: {actual_crc:x}, expected: {expect_crc:x})");
+        bail!("Invalid packet CRC (actual: {actual_crc:x}, expected: {expect_crc:x}) {:0x?}", read_buf);
     }
 
     // Finally, decode the response
-    postcard::from_bytes(&read_buf)
-        .context("Failed to deserialize response")
+    postcard::from_bytes(&cobs_decoded)
+        .with_context(|| format!("Failed to deserialize response {:0x?}", read_buf))
 }
 
 fn list_serial() -> Result<()> {
@@ -144,47 +142,72 @@ fn list_serial() -> Result<()> {
     Ok(())
 }
 
-fn send_serial(dev: &str, content: &[u8]) -> Result<()> {
+fn  send_echo(dev: &str, content: &str) -> Result<()> {
     let mut port = open_port(dev)?;
 
-    println!("Sending '{}'", String::from_utf8_lossy(content));
-    port.get_mut().write_all(content)
-        .and_then(|_| port.get_mut().write(b"\r"))
-        .context("Failed to write to serial port")?;
+    println!("Sending '{}'", content);
+    let command = Command::EchoMsg { count: content.len().try_into().context("Message is too long")? };
+    send_command(&mut port.get_mut(), &command)
+        .context("Sending EchoMsg command")?;
 
-    let mut read_buf = Vec::new();
-    match port.read_to_end(&mut read_buf) {
-        Ok(_count) => unreachable!(),
-        Err(err) if err.kind() == ErrorKind::TimedOut => {},
-        Err(err) => return Err(anyhow!(err).context("Failed to read from serial port")),
+    for (idx, chunk) in content.as_bytes().chunks(DATA_COUNT).enumerate() {
+        let mut data = [0u8; DATA_COUNT];
+        data[..chunk.len()].copy_from_slice(chunk);
+        send_command(&mut port.get_mut(), &Command::Data(data))
+            .with_context(|| format!("Sending data command {}", idx))?;
+    }
+
+    let resp: Response = recv_response(&mut port)
+        .context("Receiving EchoMsg response")?;
+
+    let resp_count = match resp {
+        Response::EchoMsg { count } => count as usize,
+        Response::PacketErr(err) => bail!("Received Packet error waiting for EchoMsg: {:?}", err),
+        other => bail!("Unexpected response: {:?}, expecting EchoMsg", other),
     };
-    let read_content = String::from_utf8_lossy(&read_buf);
-    println!("Received response: '{read_content}'");
+
+    let mut resp_content = Vec::new();
+    for i in (0..resp_count).step_by(DATA_COUNT) {
+        let resp: Response = recv_response(&mut port)?;
+        let resp_data = match resp {
+            Response::Data(data) => data,
+        Response::PacketErr(err) => bail!("Received Packet error waiting for Data: {:?}", err),
+            other => bail!("Unexpected response: {:?}, expecting Data", other),
+        };
+        let copy_count = cmp::min(DATA_COUNT as usize, resp_count - i);
+        resp_content.extend_from_slice(&resp_data[..copy_count]);
+    }
+
+    println!("Received '{}'", String::from_utf8_lossy(&resp_content));
 
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
+    use picodox_proto::errors::ProtoError;
+
     use super::*;
 
     #[test]
     fn command_round_trip() {
-        const CASES: &[Command] = &[
+        const cases: &[Command] = &[
             Command::Reset,
             Command::FlashFw,
+            Command::Data([0, 0, 3, 4, 5, 6, 0, 0]),
+            Command::EchoMsg { count: 7 },
         ];
 
-        for case in CASES {
-            let context = || format!("Test case: {:?}", case);
+        for case in cases {
+            println!("Case: {:?}", case);
             let mut buffer: Vec<u8> = Vec::new();
             send_command(&mut buffer, case)
-                .with_context(context)
+                .context("Send")
                 .unwrap();
             assert!(buffer.len() > 0);
             println!("Buffer: {:02x?}", buffer);
             let round_trip: Command = recv_response(&mut BufReader::new(&buffer[..]))
-                .with_context(context)
+                .context("Recv")
                 .unwrap();
 
             assert_eq!(case, &round_trip);
@@ -193,22 +216,23 @@ mod tests {
 
     #[test]
     fn response_round_trip() {
-        const CASES: &[Response] = &[
-            Response::LogMsg { bytes_count: 27 },
+        let cases: &[Response] = &[
+            Response::LogMsg { count: 27 },
+            Response::EchoMsg { count: 128 },
             Response::Data([1, 2, 3, 4, 5, 6, 0, 0]),
-            Response::PacketErr,
+            Response::PacketErr(ProtoError::invariant(1, 2)),
         ];
 
-        for case in CASES {
-            let context = || format!("Test case: {:?}", case);
+        for case in cases {
+            println!("Case: {:?}", case);
             let mut buffer: Vec<u8> = Vec::new();
             send_command(&mut buffer, case)
-                .with_context(context)
+                .context("Send")
                 .unwrap();
             assert!(buffer.len() > 0);
             println!("Buffer: {:02x?}", buffer);
             let round_trip: Response = recv_response(&mut BufReader::new(&buffer[..]))
-                .with_context(context)
+                .context("Recv")
                 .unwrap();
 
             assert_eq!(case, &round_trip);

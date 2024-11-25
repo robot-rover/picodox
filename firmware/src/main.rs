@@ -11,6 +11,7 @@
 #![no_main]
 
 mod serial;
+mod proto_impl;
 
 // The macro for our start-up function
 use rp_pico::entry;

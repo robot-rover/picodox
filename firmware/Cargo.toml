@@ -8,8 +8,21 @@ circular-buffer = { version = "0.1.9", default-features = false }
 cortex-m = "0.7.7"
 cortex-m-rt = "0.7.5"
 embedded-hal = "1.0.0"
-heapless = "0.8.0"
+heapless = "0.7.0"
 panic-halt = "1.0.0"
 rp-pico = "0.9.0"
+serde = { version = "1.0.215", default-features = false }
 usb-device = "0.3.2"
 usbd-serial = "0.2.2"
+picodox-proto = { path = "../proto" }
+postcard = { version = "1.0.10" }
+embedded-io = "0.6.1"
+crc = "3.2.1"
+cobs = { version = "0.2.3", default-features = false }
+
+[[bin]]
+name = "picodox-firmware"
+path = "src/main.rs"
+test = false
+doctest = false
+bench = false
