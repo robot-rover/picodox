@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+postcard = { version = "1.0", default-features = false, features = ["experimental-derive"] }
 
 [dependencies.serde]
 version = "1.0"

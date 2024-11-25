@@ -86,8 +86,7 @@ fn send_command<W: Write, S: Serialize + Debug>(port: &mut W, command: &S) -> Re
     bytes.push(crc_of_bytes);
     // COBS encode the command + crc
     let mut cobs = cobs::encode_vec(&bytes);
-    // Add the start and end of frame sentinels
-    cobs.insert(0, 0u8);
+    // Add the and end of frame sentinel
     cobs.push(0u8);
 
     port.write(&cobs)
@@ -97,15 +96,8 @@ fn send_command<W: Write, S: Serialize + Debug>(port: &mut W, command: &S) -> Re
 }
 
 fn recv_response<R: BufRead, D: DeserializeOwned>(port: &mut R) -> Result<D> {
-    // Skip garbage until we get the sentiel (/0 byte)
     let mut read_buf = Vec::new();
-    let garbage_count = port.read_until(0u8, &mut read_buf)
-        .context("Error while looking for response begin sentinel")?;
-    if garbage_count > 1 {
-        // TODO: Use a real logging system
-        println!("Warning: Encountered {} garbage bytes in the response stream", garbage_count - 1);
-    }
-    read_buf.clear(); // Clear out the garbage bytes and the begin sentinel
+    // Read until we get the end sentinel (/0 byte)
     port.read_until(0u8, &mut read_buf)
         .context("Error while reading the response body")?;
 
