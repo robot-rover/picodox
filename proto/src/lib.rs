@@ -1,6 +1,6 @@
 use serde::{Serialize, Deserialize};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Version {
     major: u16,
     minor: u16,
@@ -11,13 +11,13 @@ pub const CURRENT_VERSION: Version = Version {
     minor: 0,
 };
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Command {
     Reset,
     FlashFw,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Response {
     LogMsg {
         bytes_count: u16,
