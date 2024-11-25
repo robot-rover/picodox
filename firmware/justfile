@@ -1,0 +1,4 @@
+flash:
+  cd ../cli && cargo run flash
+  cargo build
+  picotool load -x -t elf target/thumbv6m-none-eabi/debug/picodox-firmware

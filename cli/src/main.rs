@@ -1,4 +1,4 @@
-use std::{cmp, fmt::Debug, io::{BufRead, BufReader, ErrorKind, Read, Write}, time::Duration};
+use std::{cmp, fmt::Debug, io::{BufRead, BufReader, ErrorKind, Read, Write}, thread, time::{Duration, Instant}};
 
 use anyhow::{anyhow, bail, Context, Result};
 use clap::{Parser, Subcommand};
@@ -62,11 +62,26 @@ fn reset(dev: &str) -> Result<()> {
     Ok(())
 }
 
+fn is_picoboot_connected() -> bool {
+    const RASPI_VID: u16 = 0x2e8a;
+    const PICOBOOT_PID: u16 = 0x0003;
+
+    usb_enumeration::enumerate(Some(RASPI_VID), Some(PICOBOOT_PID)).len() > 0
+}
+
 fn flash_fw(dev: &str) -> Result<()> {
     let mut port = open_port(dev)?;
     send_command(&mut port.get_mut(), &Command::FlashFw)?;
 
-    Ok(())
+    let now = Instant::now();
+    while (Instant::now() - now) < Duration::from_secs(5) {
+        if is_picoboot_connected() {
+            return Ok(());
+        } else {
+            thread::sleep(Duration::from_millis(100));
+        }
+    }
+    return Err(anyhow!("Timeout waiting for PICOBOOT device"));
 }
 
 fn open_port(device: &str) -> Result<BufReader<Box<dyn SerialPort>>> {

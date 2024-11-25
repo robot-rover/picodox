@@ -65,8 +65,8 @@ impl<'a, B: UsbBus> SerialIf<'a, B> {
                         self.cmd_buf.truncate_front(self.cmd_buf.len() - line_end - 1);
 
                         match message {
-                            Command::Reset => {},
-                            Command::FlashFw => {},
+                            Command::Reset => rp_pico::hal::reset(),
+                            Command::FlashFw => rp_pico::hal::rom_data::reset_to_usb_boot(0, 0),
                             Command::EchoMsg { count } => {
                                 self.send_packet(Response::EchoMsg { count }, SERIAL_ECHO_UCID);
                             },
