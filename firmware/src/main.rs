@@ -10,19 +10,23 @@
 #![no_std]
 #![no_main]
 
-//mod serial;
-//mod proto_impl;
+mod serial;
+mod proto_impl;
 
+use embassy_rp::watchdog::Watchdog;
 use panic_halt as _;
 
 use embassy_executor::Spawner;
 use embassy_usb::driver::EndpointError;
-use embassy_usb::{Builder, Config, UsbDevice, UsbDeviceState};
+use embassy_usb::{Config, UsbDevice};
 use embassy_usb::class::cdc_acm::{CdcAcmClass, State};
-use embassy_rp::usb::{self, Driver};
+use embassy_rp::usb;
 use embassy_rp::peripherals::USB;
 use embassy_rp::bind_interrupts;
+use serial::SerialIf;
 use static_cell::StaticCell;
+
+//static WATCHDOG : embassy_rp::watchdog::Mutex<ThreadModeWatchdog = StaticCell::new(embassy_rp::watchdog::Watchdog::new());
 
 bind_interrupts!(struct Irqs {
     USBCTRL_IRQ => usb::InterruptHandler<USB>;
@@ -31,6 +35,8 @@ bind_interrupts!(struct Irqs {
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
+
+    let watch = Watchdog::new(p.WATCHDOG);
 
     // Create the driver, from the HAL.
     let driver = usb::Driver::new(p.USB, Irqs);
@@ -70,10 +76,10 @@ async fn main(spawner: Spawner) {
     };
 
     // Create classes on the builder.
-    let mut class = {
+    let mut serial = {
         static STATE: StaticCell<State> = StaticCell::new();
         let state = STATE.init(State::new());
-        CdcAcmClass::new(&mut builder, state, 64)
+        SerialIf::setup(&mut builder, state, watch)
     };
 
     // Build the builder.
@@ -87,14 +93,13 @@ async fn main(spawner: Spawner) {
     };
 
     // Do stuff with the class!
-    loop {
-        class.wait_connection().await;
-        let _ = echo(&mut class).await;
-    }
+
+    serial.run().await;
+    loop {}
 }
 
 #[embassy_executor::task]
-async fn usb_task(mut usb: UsbDevice<'static, Driver<'static, USB>>) -> ! {
+async fn usb_task(mut usb: UsbDevice<'static, usb::Driver<'static, USB>>) -> ! {
     usb.run().await
 }
 
@@ -109,11 +114,3 @@ impl From<EndpointError> for Disconnected {
     }
 }
 
-async fn echo<'d, T: usb::Instance + 'd>(class: &mut CdcAcmClass<'d, Driver<'d, T>>) -> Result<(), Disconnected> {
-    let mut buf = [0; 64];
-    loop {
-        let n = class.read_packet(&mut buf).await?;
-        let data = &buf[..n];
-        class.write_packet(data).await?;
-    }
-}

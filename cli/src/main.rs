@@ -26,8 +26,6 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum SubCommand {
-    #[command(about = "Reset the keyboard mcu")]
-    Reset,
     #[command(name = "flash")]
     #[command(about = "Change the keyboard mcu into DFU flash mode")]
     FlashFw,
@@ -44,7 +42,6 @@ fn main() {
     let args = Cli::parse();
 
     let res = match args.command {
-        SubCommand::Reset => reset(&args.device),
         SubCommand::FlashFw => flash_fw(&args.device),
         SubCommand::ListSerial => list_serial(),
         SubCommand::Echo { msg } => send_echo(&args.device, &msg),
@@ -53,13 +50,6 @@ fn main() {
     if let Err(err) = res {
         println!("Error: {:#}", err);
     }
-}
-
-fn reset(dev: &str) -> Result<()> {
-    let mut port = open_port(dev)?;
-    send_command(&mut port.get_mut(), &Command::Reset)?;
-
-    Ok(())
 }
 
 fn is_picoboot_connected() -> bool {
@@ -200,14 +190,13 @@ fn  send_echo(dev: &str, content: &str) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use picodox_proto::errors::ProtoError;
+    use picodox_proto::errors::{ProtoError, Ucid};
 
     use super::*;
 
     #[test]
     fn command_round_trip() {
-        const cases: &[Command] = &[
-            Command::Reset,
+        let cases = &[
             Command::FlashFw,
             Command::Data([0, 0, 3, 4, 5, 6, 0, 0]),
             Command::EchoMsg { count: 7 },
@@ -231,11 +220,11 @@ mod tests {
 
     #[test]
     fn response_round_trip() {
-        let cases: &[Response] = &[
+        let cases = &[
             Response::LogMsg { count: 27 },
             Response::EchoMsg { count: 128 },
             Response::Data([1, 2, 3, 4, 5, 6, 0, 0]),
-            Response::PacketErr(ProtoError::invariant(1, 2)),
+            Response::PacketErr(ProtoError::invariant(Ucid(1), 2)),
         ];
 
         for case in cases {

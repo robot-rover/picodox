@@ -1,9 +1,9 @@
+
 use circular_buffer::CircularBuffer;
+use embassy_rp::{rom_data, usb, watchdog::{self, Watchdog}};
+use embassy_usb::{class::cdc_acm::{CdcAcmClass, State}, driver::Driver, Builder};
 use picodox_proto::{errors::Ucid, Command, Response, WireSize};
-use crate::board;
-use usb_device::{bus::{UsbBus, UsbBusAllocator}, device::UsbDevice};
 // USB Communications Class Device support
-use usbd_serial::SerialPort;
 
 use crate::proto_impl;
 
@@ -12,73 +12,77 @@ const SERIAL_ERR_UCID: Ucid = Ucid(0x2);
 const SERIAL_ECHO_UCID: Ucid = Ucid(0x3);
 const SERIAL_DATA_UCID: Ucid = Ucid(0x4);
 
-pub struct SerialIf<'a, B>
-where B: UsbBus {
-    port: SerialPort<'a, B>,
-    cmd_buf: CircularBuffer<64, u8>,
+const MAX_PACKET_SIZE: usize = 64;
+
+pub struct SerialIf<'d, D>
+where D: Driver<'d> {
+    class: CdcAcmClass<'d, D>,
+    coms_buf: CircularBuffer<128, u8>,
+    pack_buf: [u8; MAX_PACKET_SIZE],
 }
 
-impl<'a, B: UsbBus> SerialIf<'a, B> {
-    pub fn setup<'alloc: 'a>(usb_bus: &'alloc UsbBusAllocator<B>) -> Self {
+impl<'d, D: Driver<'d>> SerialIf<'d, D> {
+    pub fn setup(builder: &mut Builder<'d, D>, state: &'d mut State<'d>) -> Self {
         SerialIf {
-            port: SerialPort::new(&usb_bus),
-            cmd_buf: CircularBuffer::new(),
+            class: CdcAcmClass::new(builder, state, MAX_PACKET_SIZE as u16),
+            coms_buf: CircularBuffer::new(),
+            pack_buf: [0u8; MAX_PACKET_SIZE],
         }
     }
 
-    pub fn poll(&mut self, usb_dev: &mut UsbDevice<B>) {
-        // Check for new data
-        if usb_dev.poll(&mut [&mut self.port]) {
-            let mut buf = [0u8; 64];
-            match self.port.read(&mut buf) {
-                Err(_e) => {
-                    // Do nothing
+    pub async fn run(&mut self) {
+        loop {
+            let count = loop {
+                match self.class.read_packet(&mut self.pack_buf).await {
+                    Ok(count) => break count,
+                    Err(_e) => {},
                 }
-                Ok(0) => {
-                    // Do nothing
-                }
-                Ok(count) => {
-                    let wr_ptr = &buf[..count];
-                    // TODO: Error if dropping command characters
-                    self.cmd_buf.extend_from_slice(wr_ptr);
-                    if let Some(line_end) = self.cmd_buf.iter().position(|&x| x == 0u8) {
-                        let contig = self.cmd_buf.make_contiguous();
-                        let message_buf = &mut contig[..=line_end];
-                        // TODO: Error handling
-                        let message = match proto_impl::wire_decode::<Command>(SERIAL_DC_UCID, message_buf) {
-                            Ok(msg) => msg,
-                            Err(err) => {
-                                self.send_packet(Response::PacketErr(err), SERIAL_ERR_UCID);
-                                self.cmd_buf.truncate_front(self.cmd_buf.len() - line_end - 1);
-                                return;
-                            },
-                        };
-                        self.cmd_buf.truncate_front(self.cmd_buf.len() - line_end - 1);
+            };
 
-                        match message {
-                            Command::Reset => board::hal::reset(),
-                            Command::FlashFw => board::hal::rom_data::reset_to_usb_boot(0, 0),
-                            Command::EchoMsg { count } => {
-                                self.send_packet(Response::EchoMsg { count }, SERIAL_ECHO_UCID);
-                            },
-                            Command::Data(data) => {
-                                self.send_packet(Response::Data(data), SERIAL_DATA_UCID);
-                            },
-                        }
-                    }
+            // TODO: Error if dropping command characters
+            self.coms_buf.extend_from_slice(&self.pack_buf[..count]);
 
-                    //let mut s: String::<64> = String::new();
-                    //writeln!(s, "Buf Len: {}, end: {}\r", self.cmd_buf.len(), Into::<u64>::into(self.cmd_buf.back().cloned().unwrap_or(0)));
-                    //self.port.write(&s.as_bytes());
+            if let Some(line_end) = self.coms_buf.iter().position(|&x| x == 0u8) {
+                let contig = self.coms_buf.make_contiguous();
+                let message_buf = &mut contig[..=line_end];
+                // TODO: Error handling
+                let message = match proto_impl::wire_decode::<Command>(SERIAL_DC_UCID, message_buf) {
+                    Ok(msg) => msg,
+                    Err(err) => {
+                        self.send_packet(Response::PacketErr(err), SERIAL_ERR_UCID).await;
+                        self.coms_buf.truncate_front(self.coms_buf.len() - line_end - 1);
+                        return;
+                    },
+                };
+                self.coms_buf.truncate_front(self.coms_buf.len() - line_end - 1);
+
+                match message {
+                    Command::FlashFw => rom_data::reset_to_usb_boot(0, 0),
+                    Command::EchoMsg { count } => {
+                        self.send_packet(Response::EchoMsg { count }, SERIAL_ECHO_UCID).await;
+                    },
+                    Command::Data(data) => {
+                        self.send_packet(Response::Data(data), SERIAL_DATA_UCID).await;
+                    },
                 }
             }
         }
     }
 
-    fn send_packet(&mut self, response: Response, ucid: Ucid) {
+    async fn send_packet(&mut self, response: Response, ucid: Ucid) {
         match proto_impl::wire_encode::<_, { Response::WIRE_MAX_SIZE }>(ucid, response) {
-            Ok(buf) => self.port.write(&buf),
-            Err(err) => self.port.write(&[0xBE, 0xEF, ucid.0, 0x00]),
+            Ok(buf) => self.send_buf(&buf, ucid).await,
+            Err(_err) => self.send_buf(&[0xBE, 0xEF, ucid.0, 0x00], ucid).await,
         };
+    }
+
+    async fn send_buf(&mut self, buf: &[u8], ucid: Ucid) {
+        let mut chunks_exact = buf.chunks_exact(MAX_PACKET_SIZE);
+
+        for chunk in chunks_exact.by_ref() {
+            self.class.write_packet(chunk).await;
+        }
+
+        self.class.write_packet(chunks_exact.remainder()).await;
     }
 }

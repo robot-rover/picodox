@@ -36,7 +36,6 @@ pub const DATA_COUNT: usize = 8;
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, MaxSize)]
 pub enum Command {
-    Reset,
     FlashFw,
     EchoMsg {
         count: u16,
