@@ -3,6 +3,18 @@
 version = 3
 
 [[package]]
+name = "adafruit-kb2040"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4ec1ee0419548208917055dfa0d060f5e436071937f83c7623136850d7a463c0"
+dependencies = [
+ "cortex-m-rt",
+ "embedded-hal 1.0.0",
+ "rp2040-boot2",
+ "rp2040-hal",
+]
+
+[[package]]
 name = "arrayvec"
 version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -352,6 +364,7 @@ checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 name = "picodox-firmware"
 version = "0.1.0"
 dependencies = [
+ "adafruit-kb2040",
  "circular-buffer",
  "cobs",
  "cortex-m",
@@ -363,7 +376,6 @@ dependencies = [
  "panic-halt",
  "picodox-proto",
  "postcard",
- "rp-pico",
  "serde",
  "usb-device",
  "usbd-serial",
@@ -440,19 +452,6 @@ name = "rand_core"
 version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
-
-[[package]]
-name = "rp-pico"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9342d3ac7011ac688300979e9b52a81f0add1d05feb02868cf94bfee0705b28"
-dependencies = [
- "cortex-m-rt",
- "fugit",
- "rp2040-boot2",
- "rp2040-hal",
- "usb-device",
-]
 
 [[package]]
 name = "rp2040-boot2"

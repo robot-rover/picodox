@@ -1,9 +1,6 @@
-use core::fmt::Write as _;
-
 use circular_buffer::CircularBuffer;
-use heapless::String;
 use picodox_proto::{errors::Ucid, Command, Response, WireSize};
-use rp_pico::hal::Timer;
+use crate::board;
 use usb_device::{bus::{UsbBus, UsbBusAllocator}, device::UsbDevice};
 // USB Communications Class Device support
 use usbd_serial::SerialPort;
@@ -18,20 +15,14 @@ const SERIAL_DATA_UCID: Ucid = Ucid(0x4);
 pub struct SerialIf<'a, B>
 where B: UsbBus {
     port: SerialPort<'a, B>,
-    //timer: Timer,
-    //last_hello: Instant,
     cmd_buf: CircularBuffer<64, u8>,
-    current_command: Option<Command>,
 }
 
 impl<'a, B: UsbBus> SerialIf<'a, B> {
-    pub fn setup<'alloc: 'a>(usb_bus: &'alloc UsbBusAllocator<B>, timer: Timer) -> Self {
+    pub fn setup<'alloc: 'a>(usb_bus: &'alloc UsbBusAllocator<B>) -> Self {
         SerialIf {
             port: SerialPort::new(&usb_bus),
-            //timer,
-            //last_hello: timer.get_counter(),
             cmd_buf: CircularBuffer::new(),
-            current_command: None,
         }
     }
 
@@ -65,8 +56,8 @@ impl<'a, B: UsbBus> SerialIf<'a, B> {
                         self.cmd_buf.truncate_front(self.cmd_buf.len() - line_end - 1);
 
                         match message {
-                            Command::Reset => rp_pico::hal::reset(),
-                            Command::FlashFw => rp_pico::hal::rom_data::reset_to_usb_boot(0, 0),
+                            Command::Reset => board::hal::reset(),
+                            Command::FlashFw => board::hal::rom_data::reset_to_usb_boot(0, 0),
                             Command::EchoMsg { count } => {
                                 self.send_packet(Response::EchoMsg { count }, SERIAL_ECHO_UCID);
                             },

@@ -13,8 +13,10 @@
 mod serial;
 mod proto_impl;
 
+use adafruit_kb2040 as board;
+
 // The macro for our start-up function
-use rp_pico::entry;
+use board::entry;
 
 // Ensure we halt the program on panic (if we don't mention this crate it won't
 // be linked)
@@ -24,11 +26,11 @@ use panic_halt as _;
 
 // A shorter alias for the Peripheral Access Crate, which provides low-level
 // register access
-use rp_pico::hal::pac;
+use board::hal::pac;
 
 // A shorter alias for the Hardware Abstraction Layer, which provides
 // higher-level drivers.
-use rp_pico::hal;
+use board::hal;
 
 // USB Device support
 use usb_device::{class_prelude::*, prelude::*};
@@ -44,7 +46,7 @@ use usb_device::{class_prelude::*, prelude::*};
 fn main() -> ! {
     // Grab our singleton objects
     let mut pac = pac::Peripherals::take().unwrap();
-    let core = pac::CorePeripherals::take().unwrap();
+    let _core = pac::CorePeripherals::take().unwrap();
 
     // Set up the watchdog driver - needed by the clock setup code
     let mut watchdog = hal::Watchdog::new(pac.WATCHDOG);
@@ -53,7 +55,7 @@ fn main() -> ! {
     //
     // The default is to generate a 125 MHz system clock
     let clocks = hal::clocks::init_clocks_and_plls(
-        rp_pico::XOSC_CRYSTAL_FREQ,
+        board::XOSC_CRYSTAL_FREQ,
         pac.XOSC,
         pac.CLOCKS,
         pac.PLL_SYS,
@@ -68,7 +70,7 @@ fn main() -> ! {
     let sio = hal::Sio::new(pac.SIO);
 
     // Set the pins up according to their function on this particular board
-    let pins = rp_pico::Pins::new(
+    let _pins = board::Pins::new(
         pac.IO_BANK0,
         pac.PADS_BANK0,
         sio.gpio_bank0,
@@ -76,7 +78,7 @@ fn main() -> ! {
     );
 
     // Set the LED to be an output
-    let _led_pin = pins.led.into_push_pull_output();
+    //let _led_pin = pins.led.into_push_pull_output();
 
     // Blink the LED at 1 Hz
     // loop {
@@ -86,7 +88,7 @@ fn main() -> ! {
     //     delay.delay_ms(500);
     // }
     //
-    let timer = hal::Timer::new(pac.TIMER, &mut pac.RESETS, &clocks);
+    //let timer = hal::Timer::new(pac.TIMER, &mut pac.RESETS, &clocks);
 
     // Set up the USB driver
     let usb_bus = UsbBusAllocator::new(hal::usb::UsbBus::new(
@@ -99,7 +101,7 @@ fn main() -> ! {
 
     // Set up the USB Communications Class Device driver
 
-    let mut serial = serial::SerialIf::setup(&usb_bus, timer);
+    let mut serial = serial::SerialIf::setup(&usb_bus);
 
     // Create a USB device with a fake VID and PID
     let mut usb_dev = UsbDeviceBuilder::new(&usb_bus, UsbVidPid(0x08B9, 0xBEEF))
