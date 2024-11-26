@@ -4,21 +4,27 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-circular-buffer = { version = "0.1.9", default-features = false }
+# RT Support Code
 cortex-m = "0.7.7"
 cortex-m-rt = "0.7.5"
-embedded-hal = "1.0.0"
-heapless = "0.7.0"
 panic-halt = "1.0.0"
-adafruit-kb2040 = "0.8.0"
+# Wire Serialization
+heapless = "0.7.0"
 serde = { version = "1.0.215", default-features = false }
-usb-device = "0.3.2"
-usbd-serial = "0.2.2"
 picodox-proto = { path = "../proto" }
 postcard = { version = "1.0.10" }
-embedded-io = "0.6.1"
 crc = "3.2.1"
 cobs = { version = "0.2.3", default-features = false }
+# Embassy
+embassy-executor = { version = "0.6.3", features = ["arch-cortex-m", "executor-thread"] }
+embassy-time = "0.3.2"
+embassy-rp = { version = "0.2.0", features = ["critical-section-impl"] }
+embassy-usb = "0.3.0"
+# Misc
+embedded-io = "0.6.1"
+circular-buffer = { version = "0.1.9", default-features = false }
+static_cell = "2.1.0"
+portable-atomic = { version = "1.5", features = ["critical-section"] }
 
 [[bin]]
 name = "picodox-firmware"
