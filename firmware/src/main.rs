@@ -11,22 +11,22 @@
 #![no_main]
 
 mod serial;
-mod proto_impl;
+//mod logging;
+//mod neopixel;
 
-use embassy_rp::watchdog::Watchdog;
+//use defmt::info;
+use embassy_time::Timer;
+//use logging::LoggerIf;
 use panic_halt as _;
 
 use embassy_executor::Spawner;
-use embassy_usb::driver::EndpointError;
-use embassy_usb::{Config, UsbDevice};
-use embassy_usb::class::cdc_acm::{CdcAcmClass, State};
-use embassy_rp::usb;
+use embassy_usb::Config;
+use embassy_usb::class::cdc_acm::State;
+use embassy_rp::usb::{self, Driver};
 use embassy_rp::peripherals::USB;
 use embassy_rp::bind_interrupts;
 use serial::SerialIf;
 use static_cell::StaticCell;
-
-//static WATCHDOG : embassy_rp::watchdog::Mutex<ThreadModeWatchdog = StaticCell::new(embassy_rp::watchdog::Watchdog::new());
 
 bind_interrupts!(struct Irqs {
     USBCTRL_IRQ => usb::InterruptHandler<USB>;
@@ -35,8 +35,6 @@ bind_interrupts!(struct Irqs {
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
-
-    let watch = Watchdog::new(p.WATCHDOG);
 
     // Create the driver, from the HAL.
     let driver = usb::Driver::new(p.USB, Irqs);
@@ -76,41 +74,45 @@ async fn main(spawner: Spawner) {
     };
 
     // Create classes on the builder.
-    let mut serial = {
+    let serial = {
         static STATE: StaticCell<State> = StaticCell::new();
         let state = STATE.init(State::new());
-        SerialIf::setup(&mut builder, state, watch)
+        SerialIf::setup(&mut builder, state)
     };
+
+    //let logger = {
+    //    static STATE: StaticCell<State> = StaticCell::new();
+    //    let state = STATE.init(State::new());
+    //    LoggerIf::setup(&mut builder, state)
+    //};
 
     // Build the builder.
-    let usb = builder.build();
+    let mut usb = builder.build();
 
     // Run the USB device.
-    let _unit = if let Ok(unit) = spawner.spawn(usb_task(usb)) {
-        unit
-    } else {
-        panic!();
-    };
+    spawner.spawn(serial_task(serial));
+    // spawner.spawn(logger_task(logger));
 
     // Do stuff with the class!
 
-    serial.run().await;
-    loop {}
-}
-
-#[embassy_executor::task]
-async fn usb_task(mut usb: UsbDevice<'static, usb::Driver<'static, USB>>) -> ! {
     usb.run().await
 }
 
-struct Disconnected {}
-
-impl From<EndpointError> for Disconnected {
-    fn from(val: EndpointError) -> Self {
-        match val {
-            EndpointError::BufferOverflow => panic!("Buffer overflow"),
-            EndpointError::Disabled => Disconnected {},
-        }
-    }
+#[embassy_executor::task]
+async fn serial_task(mut serial: SerialIf<'static, Driver<'static, USB>>) -> ! {
+    serial.run().await
 }
 
+//#[embassy_executor::task]
+//async fn logger_task(mut logger: LoggerIf<'static, Driver<'static, USB>>) -> ! {
+//    logger.run().await;
+//    loop {}
+//}
+
+//#[embassy_executor::task]
+//async fn hello_task() -> ! {
+//    loop {
+//        info!("Hello World :-)");
+//        Timer::after_secs(1).await;
+//    }
+//}

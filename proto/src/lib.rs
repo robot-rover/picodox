@@ -5,6 +5,7 @@ use postcard::experimental::max_size::MaxSize;
 use serde::{Serialize, Deserialize};
 
 pub mod errors;
+pub mod proto_impl;
 
 pub trait WireSize {
     const WIRE_MAX_SIZE: usize;
@@ -44,7 +45,13 @@ pub enum Command {
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, MaxSize)]
+pub enum AckType {
+    AckFlash
+}
+
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, MaxSize)]
 pub enum Response {
+    Ack(AckType),
     LogMsg {
         count: u16,
     },

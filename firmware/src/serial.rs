@@ -1,11 +1,12 @@
 
 use circular_buffer::CircularBuffer;
 use embassy_rp::{rom_data, usb, watchdog::{self, Watchdog}};
+use embassy_time::Timer;
 use embassy_usb::{class::cdc_acm::{CdcAcmClass, State}, driver::Driver, Builder};
 use picodox_proto::{errors::Ucid, Command, Response, WireSize};
 // USB Communications Class Device support
 
-use crate::proto_impl;
+use picodox_proto::proto_impl;
 
 const SERIAL_DC_UCID: Ucid = Ucid(0x1);
 const SERIAL_ERR_UCID: Ucid = Ucid(0x2);
@@ -17,7 +18,7 @@ const MAX_PACKET_SIZE: usize = 64;
 pub struct SerialIf<'d, D>
 where D: Driver<'d> {
     class: CdcAcmClass<'d, D>,
-    coms_buf: CircularBuffer<128, u8>,
+    coms_buf: CircularBuffer<{ 2 * MAX_PACKET_SIZE }, u8>,
     pack_buf: [u8; MAX_PACKET_SIZE],
 }
 
@@ -30,7 +31,7 @@ impl<'d, D: Driver<'d>> SerialIf<'d, D> {
         }
     }
 
-    pub async fn run(&mut self) {
+    pub async fn run(&mut self) -> ! {
         loop {
             let count = loop {
                 match self.class.read_packet(&mut self.pack_buf).await {
@@ -51,13 +52,18 @@ impl<'d, D: Driver<'d>> SerialIf<'d, D> {
                     Err(err) => {
                         self.send_packet(Response::PacketErr(err), SERIAL_ERR_UCID).await;
                         self.coms_buf.truncate_front(self.coms_buf.len() - line_end - 1);
-                        return;
+                        continue
                     },
                 };
                 self.coms_buf.truncate_front(self.coms_buf.len() - line_end - 1);
 
                 match message {
-                    Command::FlashFw => rom_data::reset_to_usb_boot(0, 0),
+                    Command::FlashFw => {
+                        self.send_packet(Response::EchoMsg { count: 4 }, SERIAL_ECHO_UCID).await;
+                        Timer::after_secs(1).await;
+                        rom_data::reset_to_usb_boot(0, 0);
+                        loop {}
+                    },
                     Command::EchoMsg { count } => {
                         self.send_packet(Response::EchoMsg { count }, SERIAL_ECHO_UCID).await;
                     },
@@ -86,3 +92,4 @@ impl<'d, D: Driver<'d>> SerialIf<'d, D> {
         self.class.write_packet(chunks_exact.remainder()).await;
     }
 }
+

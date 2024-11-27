@@ -1,5 +1,5 @@
 use heapless::Vec;
-use picodox_proto::{errors::{ProtoError, Ucid}, WireSize};
+use crate::{errors::{ProtoError, Ucid}, WireSize};
 use serde::{de::DeserializeOwned, Serialize};
 use postcard;
 use crc::{Crc, CRC_8_BLUETOOTH};
@@ -36,7 +36,11 @@ pub fn wire_decode<D: DeserializeOwned + WireSize>(ucid: Ucid, buf: &mut [u8]) -
 
     let new_len = cobs::decode_in_place(no_sentinel_buf).map_err(|_| ProtoError::invariant(ucid, 0x6))?;
 
-    let actual_crc = *no_sentinel_buf.last().ok_or(ProtoError::bad_length(ucid, new_len))?;
+    if new_len == 0 {
+        return Err(ProtoError::bad_length(ucid, new_len));
+    }
+
+    let actual_crc = no_sentinel_buf[new_len - 1];
     let message_buf = &mut no_sentinel_buf[..new_len - 1];
 
     // Calculate and extract CRCs

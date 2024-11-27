@@ -384,6 +384,7 @@ dependencies = [
  "embassy-hal-internal",
  "embassy-sync",
  "embassy-time",
+ "embassy-time-driver",
  "embassy-usb-driver",
  "embedded-hal 0.2.7",
  "embedded-hal 1.0.0",
@@ -924,17 +925,22 @@ dependencies = [
  "cortex-m",
  "cortex-m-rt",
  "crc",
+ "critical-section",
  "embassy-executor",
+ "embassy-futures",
  "embassy-rp",
+ "embassy-sync",
  "embassy-time",
  "embassy-usb",
  "embedded-io",
+ "fixed",
  "heapless 0.7.17",
  "panic-halt",
  "picodox-proto",
  "portable-atomic",
  "postcard",
  "serde",
+ "smart-leds",
  "static_cell",
 ]
 
@@ -942,6 +948,9 @@ dependencies = [
 name = "picodox-proto"
 version = "0.1.0"
 dependencies = [
+ "cobs",
+ "crc",
+ "heapless 0.7.17",
  "postcard",
  "serde",
 ]
@@ -1140,6 +1149,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b15c43186be67a4fd63bee50d0303afffcef381492ebe2c5d87f324e1b8815c"
 
 [[package]]
+name = "rgb"
+version = "0.8.50"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "57397d16646700483b67d2dd6511d79318f9d057fdbd21a4066aeac8b41d310a"
+dependencies = [
+ "bytemuck",
+]
+
+[[package]]
 name = "rp-pac"
 version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1240,6 +1258,24 @@ name = "smallvec"
 version = "1.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3c5e1a9a646d36c3599cd173a41282daf47c44583ad367b8e6837255952e5c67"
+
+[[package]]
+name = "smart-leds"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "66df34e571fa9993fa6f99131a374d58ca3d694b75f9baac93458fe0d6057bf0"
+dependencies = [
+ "smart-leds-trait",
+]
+
+[[package]]
+name = "smart-leds-trait"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0bc64ee02bbbf469603016df746c0ed224f263280b6ebb49b7ebadbff375c572"
+dependencies = [
+ "rgb",
+]
 
 [[package]]
 name = "spin"

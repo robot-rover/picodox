@@ -62,6 +62,8 @@ fn is_picoboot_connected() -> bool {
 fn flash_fw(dev: &str) -> Result<()> {
     let mut port = open_port(dev)?;
     send_command(&mut port.get_mut(), &Command::FlashFw)?;
+    let resp: Response = recv_response(&mut port)?;
+    println!("Reset Response: {resp:?}");
 
     let now = Instant::now();
     while (Instant::now() - now) < Duration::from_secs(5) {
@@ -190,57 +192,117 @@ fn  send_echo(dev: &str, content: &str) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use picodox_proto::errors::{ProtoError, Ucid};
+    use std::fmt;
+
+    use picodox_proto::{errors::{ProtoError, Ucid}, proto_impl::{self, wire_encode}, WireSize};
 
     use super::*;
 
-    #[test]
-    fn command_round_trip() {
-        let cases = &[
+    fn command_cases() -> Vec<Command> {
+        vec![
             Command::FlashFw,
             Command::Data([0, 0, 3, 4, 5, 6, 0, 0]),
             Command::EchoMsg { count: 7 },
-        ];
-
-        for case in cases {
-            println!("Case: {:?}", case);
-            let mut buffer: Vec<u8> = Vec::new();
-            send_command(&mut buffer, case)
-                .context("Send")
-                .unwrap();
-            assert!(buffer.len() > 0);
-            println!("Buffer: {:02x?}", buffer);
-            let round_trip: Command = recv_response(&mut BufReader::new(&buffer[..]))
-                .context("Recv")
-                .unwrap();
-
-            assert_eq!(case, &round_trip);
-        };
+        ]
     }
 
-    #[test]
-    fn response_round_trip() {
-        let cases = &[
+    fn response_cases() -> Vec<Response> {
+        vec![
             Response::LogMsg { count: 27 },
             Response::EchoMsg { count: 128 },
             Response::Data([1, 2, 3, 4, 5, 6, 0, 0]),
             Response::PacketErr(ProtoError::invariant(Ucid(1), 2)),
-        ];
+        ]
+    }
 
-        for case in cases {
-            println!("Case: {:?}", case);
-            let mut buffer: Vec<u8> = Vec::new();
-            send_command(&mut buffer, case)
+    fn ser<S: Serialize + WireSize + fmt::Debug>(cli: bool, command: S) -> Vec<u8> {
+        if cli {
+            let mut buffer = Vec::new();
+            send_command(&mut buffer, &command)
                 .context("Send")
                 .unwrap();
+            buffer
+        } else {
+            proto_impl::wire_encode::<_, { Command::WIRE_MAX_SIZE }>(Ucid(0), command)
+                .unwrap().into_iter().collect::<Vec<u8>>()
+        }
+    }
+
+    fn des<D: DeserializeOwned + WireSize>(cli: bool, mut buffer: Vec<u8>) -> D {
+        if cli {
+            recv_response(&mut BufReader::new(&buffer[..]))
+                .context("Recv")
+                .unwrap()
+        } else {
+            proto_impl::wire_decode(Ucid(0), &mut buffer)
+                .unwrap()
+        }
+    }
+
+    fn command_round_trip(cli_ser: bool, cli_des: bool) {
+        println!("=== cli_ser: {cli_ser}, cli_des: {cli_des} ===");
+        for case in command_cases() {
+            println!("Case: {:?}", case);
+            let buffer: Vec<u8> = ser(cli_ser, &case);
             assert!(buffer.len() > 0);
             println!("Buffer: {:02x?}", buffer);
-            let round_trip: Response = recv_response(&mut BufReader::new(&buffer[..]))
-                .context("Recv")
-                .unwrap();
+            let round_trip = des(cli_des, buffer);
 
-            assert_eq!(case, &round_trip);
+            assert_eq!(case, round_trip);
         };
+    }
+
+    #[test]
+    fn command_cli_cli() {
+        command_round_trip(true, true);
+    }
+
+    #[test]
+    fn command_cli_impl() {
+        command_round_trip(true, false);
+    }
+
+    #[test]
+    fn command_impl_impl() {
+        command_round_trip(false, false);
+    }
+
+    #[test]
+    fn command_impl_cli() {
+        command_round_trip(false, true);
+    }
+
+    fn response_round_trip(cli_ser: bool, cli_des: bool) {
+        println!("=== cli_ser: {cli_ser}, cli_des: {cli_des} ===");
+        for case in response_cases() {
+            println!("Case: {:?}", case);
+            let buffer: Vec<u8> = ser(cli_ser, &case);
+            assert!(buffer.len() > 0);
+            println!("Buffer: {:02x?}", buffer);
+            let round_trip = des(cli_des, buffer);
+
+            assert_eq!(case, round_trip);
+        };
+    }
+
+    #[test]
+    fn response_cli_cli() {
+        response_round_trip(true, true);
+    }
+
+    #[test]
+    fn response_cli_impl() {
+        response_round_trip(true, false);
+    }
+
+    #[test]
+    fn response_impl_impl() {
+        response_round_trip(false, false);
+    }
+
+    #[test]
+    fn response_impl_cli() {
+        response_round_trip(false, true);
     }
 
 }

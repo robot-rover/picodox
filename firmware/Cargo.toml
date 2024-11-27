@@ -17,14 +17,21 @@ crc = "3.2.1"
 cobs = { version = "0.2.3", default-features = false }
 # Embassy
 embassy-executor = { version = "0.6.3", features = ["arch-cortex-m", "executor-thread"] }
-embassy-time = "0.3.2"
-embassy-rp = { version = "0.2.0", features = ["critical-section-impl"] }
+embassy-time = { version = "0.3.2", features = ["generic-queue"] }
+embassy-rp = { version = "0.2.0", features = ["critical-section-impl", "time-driver"] }
 embassy-usb = "0.3.0"
 # Misc
 embedded-io = "0.6.1"
 circular-buffer = { version = "0.1.9", default-features = false }
 static_cell = "2.1.0"
 portable-atomic = { version = "1.5", features = ["critical-section"] }
+# defmt = "0.3.8"
+embassy-sync = "0.6.1"
+embassy-futures = "0.1.1"
+critical-section = "1.2.0"
+smart-leds = "0.4.0"
+fixed = "1.28.0"
+# Logging
 
 [[bin]]
 name = "picodox-firmware"
