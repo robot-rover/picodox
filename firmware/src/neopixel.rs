@@ -45,7 +45,7 @@ impl Color {
         Color { r, g, b, }
     }
 
-    pub fn wheel(mut wheel_pos: u8, intensity_frac: (u8, u8)) -> Self {
+    pub fn wheel(mut wheel_pos: u8) -> Self {
        wheel_pos = 255 - wheel_pos;
         if wheel_pos < 85 {
             Self::new(255 - wheel_pos * 3, 0, wheel_pos * 3)

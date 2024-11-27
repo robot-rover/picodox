@@ -13,6 +13,7 @@
 mod serial;
 mod logging;
 mod neopixel;
+mod keyboard;
 
 use embassy_futures::select::select;
 use embassy_rp::dma::AnyChannel;
@@ -21,6 +22,7 @@ use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::signal::Signal;
 use embassy_sync::watch::Watch;
 use embassy_time::Timer;
+use keyboard::KeyboardIf;
 use logging::{LoggerIf, LoggerRxSink};
 use neopixel::{Color, Neopixel};
 use panic_halt as _;
@@ -28,7 +30,7 @@ use panic_halt as _;
 use embassy_executor::Spawner;
 use embassy_rp::pio::{self, Pio};
 use embassy_usb::{Config, UsbDevice};
-use embassy_usb::class::cdc_acm::State;
+use embassy_usb::class::{cdc_acm, hid};
 use embassy_rp::usb::{self, Driver};
 use embassy_rp::peripherals::{PIO0, USB};
 use embassy_rp::bind_interrupts;
@@ -86,14 +88,14 @@ async fn main(spawner: Spawner) {
 
     // Create classes on the builder.
     let serial = {
-        static STATE: StaticCell<State> = StaticCell::new();
-        let state = STATE.init(State::new());
+        static STATE: StaticCell<cdc_acm::State> = StaticCell::new();
+        let state = STATE.init(Default::default());
         SerialIf::new(&mut builder, state, Watchdog::new(p.WATCHDOG))
     };
 
     let (logger, logger_rx) = {
-        static STATE: StaticCell<State> = StaticCell::new();
-        let state = STATE.init(State::new());
+        static STATE: StaticCell<cdc_acm::State> = StaticCell::new();
+        let state = STATE.init(Default::default());
         logging::new(&mut builder, state)
     };
 
@@ -101,6 +103,12 @@ async fn main(spawner: Spawner) {
     let neopixel = {
         let pio0 = Pio::new(p.PIO0, Irqs);
         Neopixel::new(pio0, p.PIN_17, AnyChannel::from(p.DMA_CH0), &LED_SIGNAL)
+    };
+
+    let keyboard = {
+        static STATE: StaticCell<hid::State> = StaticCell::new();
+        let state = STATE.init(Default::default());
+        //KeyboardIf::new(&mut builder, state, p.PIN_19)
     };
 
     // Build the usb device
@@ -112,6 +120,7 @@ async fn main(spawner: Spawner) {
     spawner.must_spawn(usb_task(usb));
     spawner.must_spawn(neopixel_task(neopixel));
     spawner.must_spawn(hello_task(&LED_SIGNAL));
+    //spawner.must_spawn(keyboard_task(keyboard));
 }
 
 async fn shutdown() {
@@ -147,6 +156,11 @@ async fn usb_task(mut usb: UsbDevice<'static, Driver<'static, USB>>) {
 #[embassy_executor::task]
 async fn neopixel_task(mut neopixel: Neopixel<'static, PIO0>) -> ! {
     neopixel.run().await
+}
+
+#[embassy_executor::task]
+async fn keyboard_task(keyboard: KeyboardIf<'static, Driver<'static, USB>>) {
+    keyboard.run().await;
 }
 
 #[embassy_executor::task]
