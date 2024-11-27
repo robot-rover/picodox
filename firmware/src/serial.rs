@@ -1,6 +1,6 @@
 
 use circular_buffer::CircularBuffer;
-use embassy_rp::rom_data;
+use embassy_rp::{rom_data, watchdog::{self, Watchdog}};
 use embassy_time::Timer;
 use embassy_usb::{class::cdc_acm::{CdcAcmClass, State}, driver::Driver, Builder};
 use picodox_proto::{errors::Ucid, AckType, Command, Response, WireSize};
@@ -20,14 +20,16 @@ where D: Driver<'d> {
     class: CdcAcmClass<'d, D>,
     coms_buf: CircularBuffer<{ 2 * MAX_PACKET_SIZE }, u8>,
     pack_buf: [u8; MAX_PACKET_SIZE],
+    watchdog: Watchdog,
 }
 
 impl<'d, D: Driver<'d>> SerialIf<'d, D> {
-    pub fn new(builder: &mut Builder<'d, D>, state: &'d mut State<'d>) -> Self {
+    pub fn new(builder: &mut Builder<'d, D>, state: &'d mut State<'d>, watchdog:  Watchdog) -> Self {
         SerialIf {
             class: CdcAcmClass::new(builder, state, MAX_PACKET_SIZE as u16),
             coms_buf: CircularBuffer::new(),
             pack_buf: [0u8; MAX_PACKET_SIZE],
+            watchdog,
         }
     }
 
@@ -60,13 +62,13 @@ impl<'d, D: Driver<'d>> SerialIf<'d, D> {
                 match message {
                     Command::Reset => {
                         self.send_packet(Response::Ack(AckType::AckReset), SERIAL_ECHO_UCID).await;
-                        Timer::after_secs(1).await;
-                        rom_data::reset_to_usb_boot(0, 0);
+                        crate::shutdown().await;
+                        self.watchdog.trigger_reset();
                         loop {}
                     },
                     Command::FlashFw => {
                         self.send_packet(Response::Ack(AckType::AckFlash), SERIAL_ECHO_UCID).await;
-                        Timer::after_secs(1).await;
+                        crate::shutdown().await;
                         rom_data::reset_to_usb_boot(0, 0);
                         loop {}
                     },

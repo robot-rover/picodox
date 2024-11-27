@@ -29,6 +29,8 @@ enum SubCommand {
     #[command(name = "flash")]
     #[command(about = "Change the keyboard mcu into DFU flash mode")]
     FlashFw,
+    #[command(about = "Reset the keyboard mcu")]
+    Reset,
     #[command(about = "List all serial ports")]
     ListSerial,
     #[command(about = "Send data to the mcu over serial and read its response")]
@@ -42,6 +44,7 @@ fn main() {
     let args = Cli::parse();
 
     let res = match args.command {
+        SubCommand::Reset => reset(&args.device),
         SubCommand::FlashFw => flash_fw(&args.device),
         SubCommand::ListSerial => list_serial(),
         SubCommand::Echo { msg } => send_echo(&args.device, &msg),
@@ -51,6 +54,16 @@ fn main() {
         println!("Error: {:#}", err);
     }
 }
+
+fn reset(dev: &str) -> Result<()> {
+    let mut port = open_port(dev)?;
+    send_command(&mut port.get_mut(), &Command::Reset)?;
+    let resp: Response = recv_response(&mut port)?;
+    println!("Reset Response: {resp:?}");
+
+    Ok(())
+}
+
 
 fn is_picoboot_connected() -> bool {
     const RASPI_VID: u16 = 0x2e8a;

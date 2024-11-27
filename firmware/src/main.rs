@@ -11,10 +11,18 @@
 #![no_main]
 
 mod serial;
-mod logging;
+//mod logging;
 //mod neopixel;
 
-use logging::{LoggerIf, LoggerRxSink};
+use core::sync::atomic::Ordering;
+
+use embassy_futures::select::select;
+use embassy_rp::watchdog::Watchdog;
+use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
+use embassy_sync::signal::Signal;
+use embassy_sync::waitqueue::AtomicWaker;
+use embassy_sync::watch::Watch;
+//use logging::{LoggerIf, LoggerRxSink};
 //use defmt::info;
 //use logging::LoggerIf;
 use panic_halt as _;
@@ -25,12 +33,16 @@ use embassy_usb::class::cdc_acm::State;
 use embassy_rp::usb::{self, Driver};
 use embassy_rp::peripherals::USB;
 use embassy_rp::bind_interrupts;
+use portable_atomic::AtomicBool;
 use serial::SerialIf;
 use static_cell::StaticCell;
 
 bind_interrupts!(struct Irqs {
     USBCTRL_IRQ => usb::InterruptHandler<USB>;
 });
+
+static INITIATE_SHUTDOWN: Watch<CriticalSectionRawMutex, (), 1> = Watch::new();
+static USB_SHUTDOWN: Signal<CriticalSectionRawMutex, ()> = Signal::new();
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
@@ -77,43 +89,53 @@ async fn main(spawner: Spawner) {
     let serial = {
         static STATE: StaticCell<State> = StaticCell::new();
         let state = STATE.init(State::new());
-        SerialIf::new(&mut builder, state)
+        SerialIf::new(&mut builder, state, Watchdog::new(p.WATCHDOG))
     };
 
-    let (logger, logger_rx) = {
-        static STATE: StaticCell<State> = StaticCell::new();
-        let state = STATE.init(State::new());
-        logging::new(&mut builder, state)
-    };
+    //let (logger, logger_rx) = {
+    //    static STATE: StaticCell<State> = StaticCell::new();
+    //    let state = STATE.init(State::new());
+    //    logging::new(&mut builder, state)
+    //};
 
     // Build the builder.
     let usb = builder.build();
 
     // Run the USB device.
-    spawner.spawn(serial_task(serial));
-    spawner.spawn(logger_task(logger));
-    spawner.spawn(logger_rx_task(logger_rx));
-    spawner.spawn(usb_task(usb));
+    spawner.must_spawn(serial_task(serial));
+    //spawner.must_spawn(logger_task(logger));
+    //spawner.must_spawn(logger_rx_task(logger_rx));
+    spawner.must_spawn(usb_task(usb));
+}
+
+async fn shutdown() {
+    let shutdown_sender = INITIATE_SHUTDOWN.sender();
+    shutdown_sender.send(());
+    USB_SHUTDOWN.wait().await;
 }
 
 #[embassy_executor::task]
-async fn serial_task(mut serial: SerialIf<'static, Driver<'static, USB>>) -> ! {
-    serial.run().await
+async fn serial_task(mut serial: SerialIf<'static, Driver<'static, USB>>) {
+    serial.run().await;
+
 }
 
-#[embassy_executor::task]
-async fn logger_task(mut logger: LoggerIf<'static, Driver<'static, USB>>) -> ! {
-    logger.run().await
-}
+//#[embassy_executor::task]
+//async fn logger_task(mut logger: LoggerIf<'static, Driver<'static, USB>>) -> ! {
+//    logger.run().await
+//}
+//
+//#[embassy_executor::task]
+//async fn logger_rx_task(mut logger_rx: LoggerRxSink<'static, Driver<'static, USB>>) -> ! {
+//    logger_rx.run().await
+//}
 
 #[embassy_executor::task]
-async fn logger_rx_task(mut logger_rx: LoggerRxSink<'static, Driver<'static, USB>>) -> ! {
-    logger_rx.run().await
-}
-
-#[embassy_executor::task]
-async fn usb_task(mut usb: UsbDevice<'static, Driver<'static, USB>>) -> ! {
-    usb.run().await
+async fn usb_task(mut usb: UsbDevice<'static, Driver<'static, USB>>) {
+    let mut shutdown_receiver = INITIATE_SHUTDOWN.receiver().unwrap();
+    let _unit = select(usb.run(), shutdown_receiver.get()).await;
+    usb.disable().await;
+    USB_SHUTDOWN.signal(());
 }
 
 //#[embassy_executor::task]
