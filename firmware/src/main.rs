@@ -12,28 +12,32 @@
 
 mod serial;
 mod logging;
-//mod neopixel;
+mod neopixel;
 
 use embassy_futures::select::select;
+use embassy_rp::dma::AnyChannel;
 use embassy_rp::watchdog::Watchdog;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::signal::Signal;
 use embassy_sync::watch::Watch;
 use embassy_time::Timer;
 use logging::{LoggerIf, LoggerRxSink};
+use neopixel::{Color, Neopixel};
 use panic_halt as _;
 
 use embassy_executor::Spawner;
+use embassy_rp::pio::{self, Pio};
 use embassy_usb::{Config, UsbDevice};
 use embassy_usb::class::cdc_acm::State;
 use embassy_rp::usb::{self, Driver};
-use embassy_rp::peripherals::USB;
+use embassy_rp::peripherals::{PIO0, USB};
 use embassy_rp::bind_interrupts;
 use serial::SerialIf;
 use static_cell::StaticCell;
 
 bind_interrupts!(struct Irqs {
     USBCTRL_IRQ => usb::InterruptHandler<USB>;
+    PIO0_IRQ_0 => pio::InterruptHandler<PIO0>;
 });
 
 static INITIATE_SHUTDOWN: Watch<CriticalSectionRawMutex, (), 1> = Watch::new();
@@ -93,15 +97,21 @@ async fn main(spawner: Spawner) {
         logging::new(&mut builder, state)
     };
 
-    // Build the builder.
+    static LED_SIGNAL: Signal<CriticalSectionRawMutex, Color> = Signal::new();
+    let neopixel = {
+        let pio0 = Pio::new(p.PIO0, Irqs);
+        Neopixel::new(pio0, p.PIN_17, AnyChannel::from(p.DMA_CH0), &LED_SIGNAL)
+    };
+
+    // Build the usb device
     let usb = builder.build();
 
-    // Run the USB device.
     spawner.must_spawn(serial_task(serial));
     spawner.must_spawn(logger_task(logger));
     spawner.must_spawn(logger_rx_task(logger_rx));
     spawner.must_spawn(usb_task(usb));
-    spawner.must_spawn(hello_task());
+    spawner.must_spawn(neopixel_task(neopixel));
+    spawner.must_spawn(hello_task(&LED_SIGNAL));
 }
 
 async fn shutdown() {
@@ -135,12 +145,20 @@ async fn usb_task(mut usb: UsbDevice<'static, Driver<'static, USB>>) {
 }
 
 #[embassy_executor::task]
-async fn hello_task() -> ! {
+async fn neopixel_task(mut neopixel: Neopixel<'static, PIO0>) -> ! {
+    neopixel.run().await
+}
+
+#[embassy_executor::task]
+async fn hello_task(led_signal: &'static Signal<CriticalSectionRawMutex, Color>) -> ! {
     let mut i = 0;
     loop {
-        defmt::println!("Hello World #{} :-)", i);
-        defmt::flush();
-        Timer::after_secs(1).await;
+        if i % 10 == 0 {
+            defmt::println!("Hello World #{} :-)", i / 10);
+            defmt::flush();
+        }
+        led_signal.signal(Color::wheel(i as u8));
+        Timer::after_millis(100).await;
         i += 1;
     }
 }
