@@ -37,6 +37,7 @@ pub const DATA_COUNT: usize = 8;
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, MaxSize)]
 pub enum Command {
+    Reset,
     FlashFw,
     EchoMsg {
         count: u16,
@@ -46,7 +47,8 @@ pub enum Command {
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, MaxSize)]
 pub enum AckType {
-    AckFlash
+    AckReset,
+    AckFlash,
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, MaxSize)]

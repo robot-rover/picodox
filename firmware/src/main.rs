@@ -11,16 +11,16 @@
 #![no_main]
 
 mod serial;
-//mod logging;
+mod logging;
 //mod neopixel;
 
+use logging::{LoggerIf, LoggerRxSink};
 //use defmt::info;
-use embassy_time::Timer;
 //use logging::LoggerIf;
 use panic_halt as _;
 
 use embassy_executor::Spawner;
-use embassy_usb::Config;
+use embassy_usb::{Config, UsbDevice};
 use embassy_usb::class::cdc_acm::State;
 use embassy_rp::usb::{self, Driver};
 use embassy_rp::peripherals::USB;
@@ -77,25 +77,23 @@ async fn main(spawner: Spawner) {
     let serial = {
         static STATE: StaticCell<State> = StaticCell::new();
         let state = STATE.init(State::new());
-        SerialIf::setup(&mut builder, state)
+        SerialIf::new(&mut builder, state)
     };
 
-    //let logger = {
-    //    static STATE: StaticCell<State> = StaticCell::new();
-    //    let state = STATE.init(State::new());
-    //    LoggerIf::setup(&mut builder, state)
-    //};
+    let (logger, logger_rx) = {
+        static STATE: StaticCell<State> = StaticCell::new();
+        let state = STATE.init(State::new());
+        logging::new(&mut builder, state)
+    };
 
     // Build the builder.
-    let mut usb = builder.build();
+    let usb = builder.build();
 
     // Run the USB device.
     spawner.spawn(serial_task(serial));
-    // spawner.spawn(logger_task(logger));
-
-    // Do stuff with the class!
-
-    usb.run().await
+    spawner.spawn(logger_task(logger));
+    spawner.spawn(logger_rx_task(logger_rx));
+    spawner.spawn(usb_task(usb));
 }
 
 #[embassy_executor::task]
@@ -103,11 +101,20 @@ async fn serial_task(mut serial: SerialIf<'static, Driver<'static, USB>>) -> ! {
     serial.run().await
 }
 
-//#[embassy_executor::task]
-//async fn logger_task(mut logger: LoggerIf<'static, Driver<'static, USB>>) -> ! {
-//    logger.run().await;
-//    loop {}
-//}
+#[embassy_executor::task]
+async fn logger_task(mut logger: LoggerIf<'static, Driver<'static, USB>>) -> ! {
+    logger.run().await
+}
+
+#[embassy_executor::task]
+async fn logger_rx_task(mut logger_rx: LoggerRxSink<'static, Driver<'static, USB>>) -> ! {
+    logger_rx.run().await
+}
+
+#[embassy_executor::task]
+async fn usb_task(mut usb: UsbDevice<'static, Driver<'static, USB>>) -> ! {
+    usb.run().await
+}
 
 //#[embassy_executor::task]
 //async fn hello_task() -> ! {

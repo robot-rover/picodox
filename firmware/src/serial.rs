@@ -1,9 +1,9 @@
 
 use circular_buffer::CircularBuffer;
-use embassy_rp::{rom_data, usb, watchdog::{self, Watchdog}};
+use embassy_rp::rom_data;
 use embassy_time::Timer;
 use embassy_usb::{class::cdc_acm::{CdcAcmClass, State}, driver::Driver, Builder};
-use picodox_proto::{errors::Ucid, Command, Response, WireSize};
+use picodox_proto::{errors::Ucid, AckType, Command, Response, WireSize};
 // USB Communications Class Device support
 
 use picodox_proto::proto_impl;
@@ -23,7 +23,7 @@ where D: Driver<'d> {
 }
 
 impl<'d, D: Driver<'d>> SerialIf<'d, D> {
-    pub fn setup(builder: &mut Builder<'d, D>, state: &'d mut State<'d>) -> Self {
+    pub fn new(builder: &mut Builder<'d, D>, state: &'d mut State<'d>) -> Self {
         SerialIf {
             class: CdcAcmClass::new(builder, state, MAX_PACKET_SIZE as u16),
             coms_buf: CircularBuffer::new(),
@@ -58,8 +58,14 @@ impl<'d, D: Driver<'d>> SerialIf<'d, D> {
                 self.coms_buf.truncate_front(self.coms_buf.len() - line_end - 1);
 
                 match message {
+                    Command::Reset => {
+                        self.send_packet(Response::Ack(AckType::AckReset), SERIAL_ECHO_UCID).await;
+                        Timer::after_secs(1).await;
+                        rom_data::reset_to_usb_boot(0, 0);
+                        loop {}
+                    },
                     Command::FlashFw => {
-                        self.send_packet(Response::EchoMsg { count: 4 }, SERIAL_ECHO_UCID).await;
+                        self.send_packet(Response::Ack(AckType::AckFlash), SERIAL_ECHO_UCID).await;
                         Timer::after_secs(1).await;
                         rom_data::reset_to_usb_boot(0, 0);
                         loop {}
@@ -77,12 +83,12 @@ impl<'d, D: Driver<'d>> SerialIf<'d, D> {
 
     async fn send_packet(&mut self, response: Response, ucid: Ucid) {
         match proto_impl::wire_encode::<_, { Response::WIRE_MAX_SIZE }>(ucid, response) {
-            Ok(buf) => self.send_buf(&buf, ucid).await,
-            Err(_err) => self.send_buf(&[0xBE, 0xEF, ucid.0, 0x00], ucid).await,
+            Ok(buf) => self.send_buf(&buf).await,
+            Err(_err) => self.send_buf(&[0xBE, 0xEF, ucid.0, 0x00]).await,
         };
     }
 
-    async fn send_buf(&mut self, buf: &[u8], ucid: Ucid) {
+    async fn send_buf(&mut self, buf: &[u8]) {
         let mut chunks_exact = buf.chunks_exact(MAX_PACKET_SIZE);
 
         for chunk in chunks_exact.by_ref() {
