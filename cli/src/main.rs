@@ -52,6 +52,7 @@ fn main() {
 
     if let Err(err) = res {
         println!("Error: {:#}", err);
+        std::process::exit(1);
     }
 }
 

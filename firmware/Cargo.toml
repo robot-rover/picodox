@@ -28,7 +28,7 @@ circular-buffer = { version = "0.1.9", default-features = false }
 static_cell = "2.1.0"
 portable-atomic = { version = "1.5", features = ["critical-section"] }
 # Logging
-# defmt = "0.3.8"
+defmt = "0.3.8"
 
 [[bin]]
 name = "picodox-firmware"
