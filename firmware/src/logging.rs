@@ -1,9 +1,8 @@
 
-use core::{cell::RefCell, ptr::{addr_of, addr_of_mut}, sync::atomic::Ordering};
+use core::{cell::RefCell, ptr::addr_of_mut, sync::atomic::Ordering};
 
 use critical_section;
 use circular_buffer::CircularBuffer;
-use embassy_futures::select::{select, Either};
 use embassy_sync::{blocking_mutex::{raw::CriticalSectionRawMutex, Mutex}, signal::Signal};
 use embassy_usb::{class::cdc_acm::{CdcAcmClass, Receiver, Sender, State}, driver::Driver, Builder};
 use portable_atomic::AtomicBool;

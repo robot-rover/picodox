@@ -15,6 +15,9 @@ mod logging;
 mod neopixel;
 mod keyboard;
 
+use core::sync::atomic::Ordering;
+
+use defmt::info;
 use embassy_futures::select::select;
 use embassy_rp::dma::AnyChannel;
 use embassy_rp::watchdog::Watchdog;
@@ -29,11 +32,12 @@ use panic_halt as _;
 
 use embassy_executor::Spawner;
 use embassy_rp::pio::{self, Pio};
-use embassy_usb::{Config, UsbDevice};
+use embassy_usb::{Config, Handler, UsbDevice};
 use embassy_usb::class::{cdc_acm, hid};
 use embassy_rp::usb::{self, Driver};
 use embassy_rp::peripherals::{PIO0, USB};
 use embassy_rp::bind_interrupts;
+use portable_atomic::AtomicBool;
 use serial::SerialIf;
 use static_cell::StaticCell;
 
@@ -108,8 +112,11 @@ async fn main(spawner: Spawner) {
     let keyboard = {
         static STATE: StaticCell<hid::State> = StaticCell::new();
         let state = STATE.init(Default::default());
-        //KeyboardIf::new(&mut builder, state, p.PIN_19)
+        KeyboardIf::new(&mut builder, state, p.PIN_19)
     };
+
+    static DEVICE_HANDLER: StaticCell<MyDeviceHandler> = StaticCell::new();
+    builder.handler(DEVICE_HANDLER.init(MyDeviceHandler::new()));
 
     // Build the usb device
     let usb = builder.build();
@@ -120,7 +127,7 @@ async fn main(spawner: Spawner) {
     spawner.must_spawn(usb_task(usb));
     spawner.must_spawn(neopixel_task(neopixel));
     spawner.must_spawn(hello_task(&LED_SIGNAL));
-    //spawner.must_spawn(keyboard_task(keyboard));
+    spawner.must_spawn(keyboard_task(keyboard));
 }
 
 async fn shutdown() {
@@ -166,13 +173,58 @@ async fn keyboard_task(keyboard: KeyboardIf<'static, Driver<'static, USB>>) {
 #[embassy_executor::task]
 async fn hello_task(led_signal: &'static Signal<CriticalSectionRawMutex, Color>) -> ! {
     let mut i = 0;
+    let mut b = false;
     loop {
         if i % 10 == 0 {
             defmt::println!("Hello World #{} :-)", i / 10);
             defmt::flush();
+            b = !b;
         }
-        led_signal.signal(Color::wheel(i as u8));
+
+        led_signal.signal(if b { Color::wheel(i as u8) } else { Color::new(0, 0, 0) });
         Timer::after_millis(100).await;
         i += 1;
+    }
+}
+
+struct MyDeviceHandler {
+    configured: AtomicBool,
+}
+
+impl MyDeviceHandler {
+    fn new() -> Self {
+        MyDeviceHandler {
+            configured: AtomicBool::new(false),
+        }
+    }
+}
+
+impl Handler for MyDeviceHandler {
+    fn enabled(&mut self, enabled: bool) {
+        self.configured.store(false, Ordering::Relaxed);
+        if enabled {
+            info!("Device enabled");
+        } else {
+            info!("Device disabled");
+        }
+    }
+
+    fn reset(&mut self) {
+        self.configured.store(false, Ordering::Relaxed);
+        info!("Bus reset, the Vbus current limit is 100mA");
+    }
+
+    fn addressed(&mut self, addr: u8) {
+        self.configured.store(false, Ordering::Relaxed);
+        info!("USB address set to: {}", addr);
+    }
+
+    fn configured(&mut self, configured: bool) {
+        self.configured.store(configured, Ordering::Relaxed);
+        if configured {
+            info!("Device configured, it may now draw up to the configured current limit from Vbus.")
+        } else {
+            info!("Device is no longer configured, the Vbus current limit is 100mA.");
+        }
     }
 }

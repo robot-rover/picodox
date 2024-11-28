@@ -69,7 +69,6 @@ pub struct Neopixel<'d, P: Instance>
 where {
     dma: PeripheralRef<'d, AnyChannel>,
     sm: StateMachine<'d, P, 0>,
-    color: [u8; 3],
     signal: &'d Signal<CriticalSectionRawMutex, Color>,
 }
 
@@ -107,7 +106,6 @@ impl<'d, P: Instance> Neopixel<'d, P> {
 
         //let pin = ;
         Neopixel {
-            color: [0, 0, 0],
             sm: sm0,
             dma: dma.into_ref(),
             signal: color_signal,

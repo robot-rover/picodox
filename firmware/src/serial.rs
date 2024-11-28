@@ -1,7 +1,6 @@
 
 use circular_buffer::CircularBuffer;
-use embassy_rp::{rom_data, watchdog::{self, Watchdog}};
-use embassy_time::Timer;
+use embassy_rp::{rom_data, watchdog::{Watchdog}};
 use embassy_usb::{class::cdc_acm::{CdcAcmClass, State}, driver::Driver, Builder};
 use picodox_proto::{errors::Ucid, AckType, Command, Response, WireSize};
 // USB Communications Class Device support

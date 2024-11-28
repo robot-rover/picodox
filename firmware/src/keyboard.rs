@@ -34,7 +34,7 @@ impl<'d, D: Driver<'d>> KeyboardIf<'d, D> {
     pub async fn run(mut self) {
         let in_fut = async {
             loop {
-                info!("Waiting for HIGH on pin 16");
+                info!("Waiting for LOW on pin");
                 self.pin.wait_for_low().await;
                 info!("LOW DETECTED");
                 // Create a report with the A key pressed. (no shift modifier)
