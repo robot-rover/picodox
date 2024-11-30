@@ -1,17 +1,22 @@
 use defmt::{info, warn};
 use embassy_futures::join::join;
-use embassy_rp::gpio::{Input, Pin, Pull};
+use embassy_rp::gpio::{AnyPin, Flex, Input, Level, Output, Pin, Pull};
+use embassy_time::Timer;
 use embassy_usb::{class::hid::{Config, HidReader, HidReaderWriter, HidWriter, ReportId, RequestHandler, State}, control::OutResponse, driver::Driver, Builder};
+use heapless::Vec;
 use usbd_hid::descriptor::{KeyboardReport, SerializedDescriptor as _};
 
-pub struct KeyboardIf<'d, D: Driver<'d>> {
+use crate::{key_codes::{Key, KeyCode, KeyMod}, key_matrix};
+
+pub struct KeyboardIf<'d, D: Driver<'d>, const R: usize, const C: usize> {
     reader: HidReader<'d, D, 1>,
     writer: HidWriter<'d, D, 8>,
-    pin: Input<'d>,
+    col_pins: [Output<'d>; C],
+    row_pins: [Input<'d>; R],
 }
 
-impl<'d, D: Driver<'d>> KeyboardIf<'d, D> {
-    pub fn new(builder: &mut Builder<'d, D>, state: &'d mut State<'d>, pin: impl Pin) -> Self {
+impl<'d, D: Driver<'d>, const R: usize, const C: usize> KeyboardIf<'d, D, R, C> {
+    pub fn new(builder: &mut Builder<'d, D>, state: &'d mut State<'d>, col_pins: [AnyPin; C], row_pins: [AnyPin; R]) -> Self {
         let config = Config {
             report_descriptor: KeyboardReport::desc(),
             request_handler: None,
@@ -21,46 +26,55 @@ impl<'d, D: Driver<'d>> KeyboardIf<'d, D> {
         let hid = HidReaderWriter::<_, 1, 8>::new(builder, state, config);
         let (reader, writer) = hid.split();
 
-        let mut sig_pin = Input::new(pin, Pull::Up);
-        sig_pin.set_schmitt(true);
+        let col_pins = col_pins.map(|pin| Output::new(pin, Level::Low));
+        let row_pins  = row_pins.map(|pin| Input::new(pin, Pull::Down));
 
         KeyboardIf {
             reader,
             writer,
-            pin: sig_pin,
+            col_pins,
+            row_pins,
         }
     }
 
     pub async fn run(mut self) {
         let in_fut = async {
             loop {
-                info!("Waiting for LOW on pin");
-                self.pin.wait_for_low().await;
-                info!("LOW DETECTED");
-                // Create a report with the A key pressed. (no shift modifier)
+                info!("Starting Scan");
+                // Create a report
+                let mut code_vec: Vec::<u8, 6> = Vec::new();
+                let mut modifier = 0u8;
+                for (col, col_pin) in self.col_pins.iter_mut().enumerate() {
+                    col_pin.set_high();
+                    for (row, row_pin) in self.row_pins.iter_mut().enumerate() {
+                        if row_pin.is_high() {
+                            match key_matrix::LEFT_KEY_MATRIX[col][row] {
+                                Key::Mod(KeyMod(byte)) => modifier |= byte,
+                                Key::Code(KeyCode(byte)) => {
+                                    // Ignore ROVR Overflow for now
+                                    let _ = code_vec.push(byte);
+                                },
+                            }
+                        }
+                    }
+                    col_pin.set_low();
+                }
+
+                let mut keycodes = [0u8; 6];
+                keycodes[..code_vec.len()].copy_from_slice(&code_vec);
+
                 let report = KeyboardReport {
-                    keycodes: [4, 0, 0, 0, 0, 0],
+                    keycodes,
                     leds: 0,
-                    modifier: 0,
+                    modifier,
                     reserved: 0,
                 };
-                // Send the report.
                 match self.writer.write_serialize(&report).await {
                     Ok(()) => {}
                     Err(e) => warn!("Failed to send report: {:?}", e),
                 };
-                self.pin.wait_for_high().await;
-                info!("HIGH DETECTED");
-                let report = KeyboardReport {
-                    keycodes: [0, 0, 0, 0, 0, 0],
-                    leds: 0,
-                    modifier: 0,
-                    reserved: 0,
-                };
-                match self.writer.write_serialize(&report).await {
-                    Ok(()) => {}
-                    Err(e) => warn!("Failed to send report: {:?}", e),
-                };
+
+                Timer::after_millis(30).await;
             }
         };
 

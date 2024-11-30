@@ -14,17 +14,21 @@ mod serial;
 mod logging;
 mod neopixel;
 mod keyboard;
+mod key_matrix;
+mod key_codes;
 
 use core::sync::atomic::Ordering;
 
 use defmt::info;
 use embassy_futures::select::select;
 use embassy_rp::dma::AnyChannel;
+use embassy_rp::gpio::{Flex, Pin};
 use embassy_rp::watchdog::Watchdog;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::signal::Signal;
 use embassy_sync::watch::Watch;
 use embassy_time::Timer;
+use key_matrix::{NUM_COLS, NUM_ROWS};
 use keyboard::KeyboardIf;
 use logging::{LoggerIf, LoggerRxSink};
 use neopixel::{Color, Neopixel};
@@ -109,10 +113,18 @@ async fn main(spawner: Spawner) {
         Neopixel::new(pio0, p.PIN_17, AnyChannel::from(p.DMA_CH0), &LED_SIGNAL)
     };
 
+    // p.PIN_19 is rotary encoder momentary switch
+
     let keyboard = {
         static STATE: StaticCell<hid::State> = StaticCell::new();
         let state = STATE.init(Default::default());
-        KeyboardIf::new(&mut builder, state, p.PIN_19)
+        // Row Pins (from kb2040 pin numbers)
+        // [1, 2, 7, 8, 9]
+        let row_pins = [p.PIN_0.degrade(), p.PIN_1.degrade(), p.PIN_4.degrade(), p.PIN_5.degrade(), p.PIN_6.degrade()];
+        // Col Pins (from kb2040 pin numbers)
+        // [17, 18, 19, 20, 12, 11, 10]
+        let col_pins = [p.PIN_26.degrade(), p.PIN_27.degrade(), p.PIN_28.degrade(), p.PIN_29.degrade(), p.PIN_9.degrade(), p.PIN_8.degrade(), p.PIN_7.degrade()];
+        KeyboardIf::new(&mut builder, state, col_pins, row_pins)
     };
 
     static DEVICE_HANDLER: StaticCell<MyDeviceHandler> = StaticCell::new();
@@ -166,7 +178,7 @@ async fn neopixel_task(mut neopixel: Neopixel<'static, PIO0>) -> ! {
 }
 
 #[embassy_executor::task]
-async fn keyboard_task(keyboard: KeyboardIf<'static, Driver<'static, USB>>) {
+async fn keyboard_task(keyboard: KeyboardIf<'static, Driver<'static, USB>, NUM_ROWS, NUM_COLS>) {
     keyboard.run().await;
 }
 
