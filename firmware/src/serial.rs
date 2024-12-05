@@ -65,8 +65,8 @@ impl<'d, D: Driver<'d>> SerialIf<'d, D> {
                         self.watchdog.trigger_reset();
                         loop {}
                     },
-                    Command::FlashFw => {
-                        self.send_packet(Response::Ack(AckType::AckFlash), SERIAL_ECHO_UCID).await;
+                    Command::UsbDfu => {
+                        self.send_packet(Response::Ack(AckType::AckUsbDfu), SERIAL_ECHO_UCID).await;
                         crate::shutdown().await;
                         rom_data::reset_to_usb_boot(0, 0);
                         loop {}

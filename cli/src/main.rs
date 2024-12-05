@@ -75,7 +75,7 @@ fn is_picoboot_connected() -> bool {
 
 fn flash_fw(dev: &str) -> Result<()> {
     let mut port = open_port(dev)?;
-    send_command(&mut port.get_mut(), &Command::FlashFw)?;
+    send_command(&mut port.get_mut(), &Command::UsbDfu)?;
     let resp: Response = recv_response(&mut port)?;
     println!("Reset Response: {resp:?}");
 
