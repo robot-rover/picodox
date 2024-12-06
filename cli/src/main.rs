@@ -26,9 +26,13 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum SubCommand {
-    #[command(name = "flash")]
+    #[command(about = "Flash new firmware to the keyboard using the serial interface")]
+    Flash {
+        #[arg(help = "The elf file to flash")]
+        path: String,
+    },
     #[command(about = "Change the keyboard mcu into DFU flash mode")]
-    FlashFw,
+    Dfu,
     #[command(about = "Reset the keyboard mcu")]
     Reset,
     #[command(about = "List all serial ports")]
@@ -45,15 +49,25 @@ fn main() {
 
     let res = match args.command {
         SubCommand::Reset => reset(&args.device),
-        SubCommand::FlashFw => flash_fw(&args.device),
+        SubCommand::Dfu => usb_dfu(&args.device),
         SubCommand::ListSerial => list_serial(),
         SubCommand::Echo { msg } => send_echo(&args.device, &msg),
+        SubCommand::Flash { path } => flash_fw(&args.device, &path),
     };
 
     if let Err(err) = res {
         println!("Error: {:#}", err);
         std::process::exit(1);
     }
+}
+
+fn flash_fw(dev: &str, path: &str) -> Result<()> {
+    let mut port = open_port(dev)?;
+    send_command(&mut port.get_mut(), &Command::Reset)?;
+    let resp: Response = recv_response(&mut port)?;
+    println!("Reset Response: {resp:?}");
+
+    Ok(())
 }
 
 fn reset(dev: &str) -> Result<()> {
@@ -73,7 +87,7 @@ fn is_picoboot_connected() -> bool {
     usb_enumeration::enumerate(Some(RASPI_VID), Some(PICOBOOT_PID)).len() > 0
 }
 
-fn flash_fw(dev: &str) -> Result<()> {
+fn usb_dfu(dev: &str) -> Result<()> {
     let mut port = open_port(dev)?;
     send_command(&mut port.get_mut(), &Command::UsbDfu)?;
     let resp: Response = recv_response(&mut port)?;

@@ -39,6 +39,9 @@ pub const DATA_COUNT: usize = 8;
 pub enum Command {
     Reset,
     UsbDfu,
+    FlashFw {
+        count: u16,
+    },
     EchoMsg {
         count: u16,
     },
