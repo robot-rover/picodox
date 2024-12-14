@@ -9,6 +9,7 @@ pub mod proto_impl;
 
 pub trait WireSize {
     const WIRE_MAX_SIZE: usize;
+    const CS_MAX_SIZE: usize;
 }
 
 const fn cobs_max_length(source_len: usize) -> usize {
@@ -20,6 +21,9 @@ impl<T: MaxSize> WireSize for T {
     // Pre COBS length is the max postcard length plus the CRC byte
     // Then we add one more byte for the sentinel
     const WIRE_MAX_SIZE: usize = cobs_max_length(T::POSTCARD_MAX_SIZE + 1) + 1;
+    // If there is no cobs encoding (not necessary in a framed format such as I2C), then
+    // the only overhead on top of postcard is the CRC byte
+    const CS_MAX_SIZE: usize = T::POSTCARD_MAX_SIZE + 1;
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, MaxSize)]

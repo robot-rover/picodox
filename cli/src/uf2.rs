@@ -1,6 +1,6 @@
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{bail, Result};
 use bitflags::bitflags;
-use zerocopy::{transmute, transmute_ref, try_transmute, FromBytes, Immutable, KnownLayout, Unalign, Unaligned};
+use zerocopy::{try_transmute, FromBytes, Immutable, KnownLayout};
 
 const UF2_MAGIC_START0: [u8; 4] = [0x55, 0x46, 0x32, 0x0A];
 const UF2_MAGIC_START1: [u8; 4] = [0x57, 0x51, 0x5D, 0x9E];
