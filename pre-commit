@@ -25,4 +25,4 @@ exec 1>&2
 git diff-index --check --cached $against -- || exit 1
 
 # Run cargo fmt checks and unit tests
-just commit-verify || exit 1
+just verify-commit || exit 1

@@ -1,5 +1,5 @@
 [package]
-name = "bootloader"
+name = "picodox-bootloader"
 version = "0.1.0"
 edition = "2021"
 
@@ -16,3 +16,10 @@ embedded-storage-async = "0.4.1"
 [profile.release]
 debug = true
 opt-level = 's'
+
+[[bin]]
+name = "picodox-bootloader"
+path = "src/main.rs"
+test = false
+doctest = false
+bench = false

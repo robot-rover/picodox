@@ -1,16 +1,12 @@
-use core::future::Future;
-
 use circular_buffer::CircularBuffer;
-use defmt::{error, warn};
+use defmt::error;
 use embassy_rp::{rom_data, watchdog::Watchdog};
 use embassy_usb::{
     class::cdc_acm::{CdcAcmClass, State},
     driver::Driver,
     Builder,
 };
-use picodox_proto::{
-    errors::ProtoError, AckType, Command, NackType, Response, WireSize, DATA_COUNT,
-};
+use picodox_proto::{AckType, Command, NackType, Response, WireSize, DATA_COUNT};
 // USB Communications Class Device support
 
 use picodox_proto::proto_impl;

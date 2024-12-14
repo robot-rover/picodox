@@ -8,6 +8,12 @@ test-all:
   cd proto && cargo test
   cd cli && cargo test
 
+fix-all:
+  cd firmware && cargo fix --allow-dirty
+  cd cli && cargo fix --allow-dirty
+  cd bootloader && cargo fix --allow-dirty
+  cd proto && cargo fix --allow-dirty
+
 fmt-check-all:
   cd firmware && cargo fmt -- --check
   cd cli && cargo fmt -- --check
@@ -20,4 +26,4 @@ fmt-all:
   cd bootloader && cargo fmt
   cd proto && cargo fmt
 
-commit-verify: check-all fmt-check-all test-all
+verify-commit: check-all fmt-check-all test-all
