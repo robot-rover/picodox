@@ -113,14 +113,16 @@ impl<'d, D: Driver<'d>> LoggerIf<'d, D> {
                 (is_all, take_count)
             });
 
-            self.sender.write_packet(&self.send_buf[..send_len]).await;
+            // Since this is the error reporting mechanism, just fail silently
+            let _ = self.sender.write_packet(&self.send_buf[..send_len]).await;
 
             // Add the ZLP to flush buffer if no more data is waiting
             if is_all
                 && send_len == MAX_PACKET_SIZE
                 && GLOBAL_COMS.buf.lock(|buf_cell| buf_cell.borrow().is_empty())
             {
-                self.sender.write_packet(&[]).await;
+                // Since this is the error reporting mechanism, just fail silently
+                let _ = self.sender.write_packet(&[]).await;
             }
         }
     }
@@ -130,7 +132,8 @@ impl<'d, D: Driver<'d>> LoggerIf<'d, D> {
 impl<'d, D: Driver<'d>> LoggerRxSink<'d, D> {
     pub async fn run(&mut self) -> ! {
         loop {
-            self.receiver.read_packet(&mut self.recv_buf).await;
+            // TODO: Can we ignore these instead?
+            let _ = self.receiver.read_packet(&mut self.recv_buf).await;
         }
     }
 }

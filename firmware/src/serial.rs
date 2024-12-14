@@ -1,16 +1,11 @@
 
 use circular_buffer::CircularBuffer;
-use embassy_rp::{rom_data, watchdog::{Watchdog}};
+use embassy_rp::{rom_data, watchdog::Watchdog};
 use embassy_usb::{class::cdc_acm::{CdcAcmClass, State}, driver::Driver, Builder};
-use picodox_proto::{errors::Ucid, AckType, Command, Response, WireSize};
+use picodox_proto::{AckType, Command, Response, WireSize};
 // USB Communications Class Device support
 
 use picodox_proto::proto_impl;
-
-const SERIAL_DC_UCID: Ucid = Ucid(0x1);
-const SERIAL_ERR_UCID: Ucid = Ucid(0x2);
-const SERIAL_ECHO_UCID: Ucid = Ucid(0x3);
-const SERIAL_DATA_UCID: Ucid = Ucid(0x4);
 
 const MAX_PACKET_SIZE: usize = 64;
 
@@ -46,10 +41,10 @@ impl<'d, D: Driver<'d>> SerialIf<'d, D> {
                 let contig = self.coms_buf.make_contiguous();
                 let message_buf = &mut contig[..=line_end];
                 // TODO: Error handling
-                let message = match proto_impl::wire_decode::<Command>(SERIAL_DC_UCID, message_buf) {
+                let message = match proto_impl::wire_decode::<Command>(message_buf) {
                     Ok(msg) => msg,
                     Err(err) => {
-                        self.send_packet(Response::PacketErr(err), SERIAL_ERR_UCID).await;
+                        self.send_packet(&Response::PacketErr(err)).await;
                         self.coms_buf.truncate_front(self.coms_buf.len() - line_end - 1);
                         continue
                     },
@@ -58,22 +53,22 @@ impl<'d, D: Driver<'d>> SerialIf<'d, D> {
 
                 match message {
                     Command::Reset => {
-                        self.send_packet(Response::Ack(AckType::AckReset), SERIAL_ECHO_UCID).await;
+                        self.send_packet(&Response::Ack(AckType::AckReset)).await;
                         crate::shutdown().await;
                         self.watchdog.trigger_reset();
                         loop {}
                     },
                     Command::UsbDfu => {
-                        self.send_packet(Response::Ack(AckType::AckUsbDfu), SERIAL_ECHO_UCID).await;
+                        self.send_packet(&Response::Ack(AckType::AckUsbDfu)).await;
                         crate::shutdown().await;
                         rom_data::reset_to_usb_boot(0, 0);
                         loop {}
                     },
                     Command::EchoMsg { count } => {
-                        self.send_packet(Response::EchoMsg { count }, SERIAL_ECHO_UCID).await;
+                        self.send_packet(&Response::EchoMsg { count }).await;
                     },
                     Command::Data(data) => {
-                        self.send_packet(Response::Data(data), SERIAL_DATA_UCID).await;
+                        self.send_packet(&Response::Data(data)).await;
                     },
                     Command::FlashFw { count } => todo!(),
                 }
@@ -81,10 +76,10 @@ impl<'d, D: Driver<'d>> SerialIf<'d, D> {
         }
     }
 
-    async fn send_packet(&mut self, response: Response, ucid: Ucid) {
-        match proto_impl::wire_encode::<_, { Response::WIRE_MAX_SIZE }>(ucid, response) {
+    async fn send_packet(&mut self, response: &Response) {
+        match proto_impl::wire_encode::<_, { Response::WIRE_MAX_SIZE }>(response) {
             Ok(buf) => self.send_buf(&buf).await,
-            Err(_err) => self.send_buf(&[0xBE, 0xEF, ucid.0, 0x00]).await,
+            Err(_err) => self.send_buf(&[0xBE, 0xEF, 0x00]).await,
         };
     }
 

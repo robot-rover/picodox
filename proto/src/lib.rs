@@ -1,6 +1,7 @@
 #![no_std]
 
 use errors::ProtoError;
+use heapless::Vec;
 use postcard::experimental::max_size::MaxSize;
 use serde::{Serialize, Deserialize};
 
@@ -70,6 +71,14 @@ pub enum Response {
     PacketErr(ProtoError),
 }
 
+pub const MAX_KEYS: usize = 35;
+
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, MaxSize)]
+pub enum KeyResponse {
+    Response(Response),
+    KeyUpdate(Vec<u8, MAX_KEYS>),
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -87,5 +96,22 @@ mod tests {
             .expect("Cannot serialize long response");
         assert_eq!(short_bytes.len(), 2);
         assert_eq!(long_bytes.len(), 9);
+    }
+
+    #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, MaxSize)]
+    struct TestArrStruct([u8; 10]);
+
+    #[test]
+    fn check_vec_size() {
+        let mut short_vec = Vec::new();
+        short_vec.push(1u8).unwrap();
+        let short_bytes = to_stdvec(&KeyResponse::KeyUpdate(short_vec)).expect("Cannot serialize short vec");
+
+        let long_arr = TestArrStruct([0u8; 10]);
+        let long_bytes = to_stdvec(&long_arr).expect("Cannot serialize long vec");
+
+        // One byte for KeyResponse discriminant, one for vec len, and one for the data byte
+        assert_eq!(short_bytes.len(), 3);
+        assert_eq!(long_bytes.len(), 10);
     }
 }
