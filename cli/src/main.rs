@@ -1,4 +1,11 @@
-use std::{cmp, fmt::Debug, fs, io::{BufRead, BufReader, Write}, thread, time::{Duration, Instant}};
+use std::{
+    cmp,
+    fmt::Debug,
+    fs,
+    io::{BufRead, BufReader, Write},
+    thread,
+    time::{Duration, Instant},
+};
 
 mod uf2;
 
@@ -71,8 +78,8 @@ fn main() {
 }
 
 fn analyze_uf2(path: &str) -> Result<()> {
-    let file_contents = fs::read(path)
-        .with_context(|| format!("Unable to open file '{}'", path))?;
+    let file_contents =
+        fs::read(path).with_context(|| format!("Unable to open file '{}'", path))?;
 
     let blocks = Uf2Block::parse(&file_contents)?;
 
@@ -81,7 +88,10 @@ fn analyze_uf2(path: &str) -> Result<()> {
         None => bail!("No blocks in file!"),
     };
 
-    for block in blocks[1..].iter().filter(|b| !b.get_flags().contains(Uf2Flags::NotMainFlash)) {
+    for block in blocks[1..]
+        .iter()
+        .filter(|b| !b.get_flags().contains(Uf2Flags::NotMainFlash))
+    {
         let new_bounds = block.get_bounds();
         bounds = if bounds.1 == new_bounds.0 {
             (bounds.0, new_bounds.1)
@@ -127,7 +137,6 @@ fn reset(dev: &str) -> Result<()> {
     Ok(())
 }
 
-
 fn is_picoboot_connected() -> bool {
     const RASPI_VID: u16 = 0x2e8a;
     const PICOBOOT_PID: u16 = 0x0003;
@@ -158,11 +167,11 @@ fn usb_dfu(dev: &str) -> Result<()> {
 fn open_port(device: &str) -> Result<BufReader<Box<dyn SerialPort>>> {
     let port = serialport::new(device, 115_200)
         .timeout(SERIAL_TIMEOUT)
-        .open().with_context(|| format!("Failed to open serial port '{device}'"))?;
+        .open()
+        .with_context(|| format!("Failed to open serial port '{device}'"))?;
 
     Ok(BufReader::new(port))
 }
-
 
 fn send_command<W: Write, S: Serialize + Debug>(port: &mut W, command: &S) -> Result<()> {
     // Serialize the command useing postcard
@@ -193,8 +202,9 @@ fn recv_response<R: BufRead, D: DeserializeOwned>(port: &mut R) -> Result<D> {
     assert_eq!(end_sentinel, 0u8);
 
     // Decode COBS
-    let mut cobs_decoded =  cobs::decode_vec(&read_buf)
-        .ok().ok_or_else(|| anyhow!("Invalid packet encountered (illegal cobs) {:0x?}", read_buf))?;
+    let mut cobs_decoded = cobs::decode_vec(&read_buf)
+        .ok()
+        .ok_or_else(|| anyhow!("Invalid packet encountered (illegal cobs) {:0x?}", read_buf))?;
 
     let actual_crc = if let Some(crc) = cobs_decoded.pop() {
         crc
@@ -205,7 +215,10 @@ fn recv_response<R: BufRead, D: DeserializeOwned>(port: &mut R) -> Result<D> {
     // Check the CRC
     let expect_crc = CRC.checksum(&cobs_decoded);
     if expect_crc != actual_crc {
-        bail!("Invalid packet CRC (actual: {actual_crc:x}, expected: {expect_crc:x}) {:0x?}", read_buf);
+        bail!(
+            "Invalid packet CRC (actual: {actual_crc:x}, expected: {expect_crc:x}) {:0x?}",
+            read_buf
+        );
     }
 
     // Finally, decode the response
@@ -214,8 +227,8 @@ fn recv_response<R: BufRead, D: DeserializeOwned>(port: &mut R) -> Result<D> {
 }
 
 fn list_serial() -> Result<()> {
-    let ports = serialport::available_ports()
-        .context("Unable to enumerate available serial ports")?;
+    let ports =
+        serialport::available_ports().context("Unable to enumerate available serial ports")?;
     if ports.len() > 0 {
         for port in ports {
             println!("{}", port.port_name);
@@ -227,13 +240,14 @@ fn list_serial() -> Result<()> {
     Ok(())
 }
 
-fn  send_echo(dev: &str, content: &str) -> Result<()> {
+fn send_echo(dev: &str, content: &str) -> Result<()> {
     let mut port = open_port(dev)?;
 
     println!("Sending '{}'", content);
-    let command = Command::EchoMsg { count: content.len().try_into().context("Message is too long")? };
-    send_command(&mut port.get_mut(), &command)
-        .context("Sending EchoMsg command")?;
+    let command = Command::EchoMsg {
+        count: content.len().try_into().context("Message is too long")?,
+    };
+    send_command(&mut port.get_mut(), &command).context("Sending EchoMsg command")?;
 
     for (idx, chunk) in content.as_bytes().chunks(DATA_COUNT).enumerate() {
         let mut data = [0u8; DATA_COUNT];
@@ -242,8 +256,7 @@ fn  send_echo(dev: &str, content: &str) -> Result<()> {
             .with_context(|| format!("Sending data command {}", idx))?;
     }
 
-    let resp: Response = recv_response(&mut port)
-        .context("Receiving EchoMsg response")?;
+    let resp: Response = recv_response(&mut port).context("Receiving EchoMsg response")?;
 
     let resp_count = match resp {
         Response::EchoMsg { count } => count as usize,
@@ -256,7 +269,7 @@ fn  send_echo(dev: &str, content: &str) -> Result<()> {
         let resp: Response = recv_response(&mut port)?;
         let resp_data = match resp {
             Response::Data(data) => data,
-        Response::PacketErr(err) => bail!("Received Packet error waiting for Data: {:?}", err),
+            Response::PacketErr(err) => bail!("Received Packet error waiting for Data: {:?}", err),
             other => bail!("Unexpected response: {:?}, expecting Data", other),
         };
         let copy_count = cmp::min(DATA_COUNT as usize, resp_count - i);
@@ -272,11 +285,15 @@ fn  send_echo(dev: &str, content: &str) -> Result<()> {
 mod tests {
     use std::fmt;
 
-    use picodox_proto::{errors::ProtoError, proto_impl::{self}, WireSize};
+    use picodox_proto::{
+        errors::ProtoError,
+        proto_impl::{self},
+        WireSize,
+    };
 
     use super::*;
 
-    const COMMAND_CASES: &[Command] = & [
+    const COMMAND_CASES: &[Command] = &[
         Command::FlashFw { count: 10 },
         Command::Data([0, 0, 3, 4, 5, 6, 0, 0]),
         Command::EchoMsg { count: 7 },
@@ -288,16 +305,17 @@ mod tests {
         Response::PacketErr(ProtoError::Invariant { kind: 2 }),
     ];
 
-    fn ser<S: Serialize + WireSize + fmt::Debug, const N: usize>(case: usize, command: &S) -> Vec<u8> {
+    fn ser<S: Serialize + WireSize + fmt::Debug, const N: usize>(
+        case: usize,
+        command: &S,
+    ) -> Vec<u8> {
         match case {
             0 => {
                 let mut buffer = Vec::new();
-                send_command(&mut buffer, &command)
-                    .context("Send")
-                    .unwrap();
+                send_command(&mut buffer, &command).context("Send").unwrap();
                 buffer
             }
-            1 => proto_impl::wire_encode::<_, N>(command) .unwrap().to_vec(),
+            1 => proto_impl::wire_encode::<_, N>(command).unwrap().to_vec(),
             2 => proto_impl::cs_encode::<_, N>(command).unwrap().to_vec(),
             _ => unimplemented!(),
         }
@@ -315,7 +333,9 @@ mod tests {
     }
 
     fn round_trip<T, const N: usize>(ser_idx: usize, des_idx: usize, cases: &[T])
-    where T: Serialize + DeserializeOwned + WireSize + fmt::Debug + PartialEq {
+    where
+        T: Serialize + DeserializeOwned + WireSize + fmt::Debug + PartialEq,
+    {
         println!("=== ser: {ser_idx}, des: {des_idx} ===");
         for case in cases {
             println!("Case: {:?}", case);
@@ -325,7 +345,7 @@ mod tests {
             let round_trip = des(des_idx, buffer);
 
             assert_eq!(case, &round_trip);
-        };
+        }
     }
 
     #[test]
@@ -346,7 +366,11 @@ mod tests {
     fn response_wire_cross() {
         for ser_idx in 0..=1 {
             for des_idx in 0..=1 {
-                round_trip::<Response, { Response::WIRE_MAX_SIZE }>(ser_idx, des_idx, RESPONSE_CASES)
+                round_trip::<Response, { Response::WIRE_MAX_SIZE }>(
+                    ser_idx,
+                    des_idx,
+                    RESPONSE_CASES,
+                )
             }
         }
     }
@@ -355,5 +379,4 @@ mod tests {
     fn response_cs() {
         round_trip::<Response, { Response::CS_MAX_SIZE }>(2, 2, RESPONSE_CASES)
     }
-
 }

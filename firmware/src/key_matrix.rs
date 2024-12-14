@@ -5,35 +5,11 @@ pub const NUM_COLS: usize = 7;
 
 const LEFT_KEY_MATRIX_T: [[Key; NUM_COLS]; NUM_ROWS] = [
     // K1-K7
-    [
-        KEY_NONE,
-        KEY_5,
-        KEY_4,
-        KEY_3,
-        KEY_2,
-        KEY_1,
-        KEY_GRAVE,
-    ],
+    [KEY_NONE, KEY_5, KEY_4, KEY_3, KEY_2, KEY_1, KEY_GRAVE],
     // K8-K14
-    [
-        KEY_LEFTBRACE,
-        KEY_T,
-        KEY_R,
-        KEY_E,
-        KEY_W,
-        KEY_Q,
-        KEY_TAB,
-    ],
+    [KEY_LEFTBRACE, KEY_T, KEY_R, KEY_E, KEY_W, KEY_Q, KEY_TAB],
     // K15-K21
-    [
-        KEY_PAGEUP,
-        KEY_G,
-        KEY_F,
-        KEY_D,
-        KEY_S,
-        KEY_A,
-        KEY_ESC,
-    ],
+    [KEY_PAGEUP, KEY_G, KEY_F, KEY_D, KEY_S, KEY_A, KEY_ESC],
     // K22-K28
     [
         KEY_PAGEDOWN,

@@ -1,7 +1,10 @@
-
 use circular_buffer::CircularBuffer;
 use embassy_rp::{rom_data, watchdog::Watchdog};
-use embassy_usb::{class::cdc_acm::{CdcAcmClass, State}, driver::Driver, Builder};
+use embassy_usb::{
+    class::cdc_acm::{CdcAcmClass, State},
+    driver::Driver,
+    Builder,
+};
 use picodox_proto::{AckType, Command, Response, WireSize};
 // USB Communications Class Device support
 
@@ -10,7 +13,9 @@ use picodox_proto::proto_impl;
 const MAX_PACKET_SIZE: usize = 64;
 
 pub struct SerialIf<'d, D>
-where D: Driver<'d> {
+where
+    D: Driver<'d>,
+{
     class: CdcAcmClass<'d, D>,
     coms_buf: CircularBuffer<{ 2 * MAX_PACKET_SIZE }, u8>,
     pack_buf: [u8; MAX_PACKET_SIZE],
@@ -18,7 +23,7 @@ where D: Driver<'d> {
 }
 
 impl<'d, D: Driver<'d>> SerialIf<'d, D> {
-    pub fn new(builder: &mut Builder<'d, D>, state: &'d mut State<'d>, watchdog:  Watchdog) -> Self {
+    pub fn new(builder: &mut Builder<'d, D>, state: &'d mut State<'d>, watchdog: Watchdog) -> Self {
         SerialIf {
             class: CdcAcmClass::new(builder, state, MAX_PACKET_SIZE as u16),
             coms_buf: CircularBuffer::new(),
@@ -32,9 +37,7 @@ impl<'d, D: Driver<'d>> SerialIf<'d, D> {
             let count = async_unwrap!(res self.class.read_packet(&mut self.pack_buf).await, "Usb read_packet error: {}");
 
             // TODO: Error if dropping command characters
-            if self.coms_buf.capacity() - self.coms_buf.len() < count {
-
-            }
+            if self.coms_buf.capacity() - self.coms_buf.len() < count {}
             self.coms_buf.extend_from_slice(&self.pack_buf[..count]);
 
             if let Some(line_end) = self.coms_buf.iter().position(|&x| x == 0u8) {
@@ -45,11 +48,13 @@ impl<'d, D: Driver<'d>> SerialIf<'d, D> {
                     Ok(msg) => msg,
                     Err(err) => {
                         self.send_packet(&Response::PacketErr(err)).await;
-                        self.coms_buf.truncate_front(self.coms_buf.len() - line_end - 1);
-                        continue
-                    },
+                        self.coms_buf
+                            .truncate_front(self.coms_buf.len() - line_end - 1);
+                        continue;
+                    }
                 };
-                self.coms_buf.truncate_front(self.coms_buf.len() - line_end - 1);
+                self.coms_buf
+                    .truncate_front(self.coms_buf.len() - line_end - 1);
 
                 match message {
                     Command::Reset => {
@@ -57,19 +62,19 @@ impl<'d, D: Driver<'d>> SerialIf<'d, D> {
                         crate::shutdown().await;
                         self.watchdog.trigger_reset();
                         loop {}
-                    },
+                    }
                     Command::UsbDfu => {
                         self.send_packet(&Response::Ack(AckType::AckUsbDfu)).await;
                         crate::shutdown().await;
                         rom_data::reset_to_usb_boot(0, 0);
                         loop {}
-                    },
+                    }
                     Command::EchoMsg { count } => {
                         self.send_packet(&Response::EchoMsg { count }).await;
-                    },
+                    }
                     Command::Data(data) => {
                         self.send_packet(&Response::Data(data)).await;
-                    },
+                    }
                     Command::FlashFw { count } => todo!(),
                 }
             }
@@ -96,4 +101,3 @@ impl<'d, D: Driver<'d>> SerialIf<'d, D> {
         async_unwrap!(res self.class.write_packet(chunks_exact.remainder()).await, "Error sending buffer: {}");
     }
 }
-

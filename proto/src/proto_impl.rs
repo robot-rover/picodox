@@ -1,13 +1,15 @@
-use heapless::Vec;
 use crate::{errors::ProtoError, WireSize};
-use serde::{de::DeserializeOwned, Serialize};
-use postcard;
-use crc::{Crc, CRC_8_BLUETOOTH};
 use cobs;
+use crc::{Crc, CRC_8_BLUETOOTH};
+use heapless::Vec;
+use postcard;
+use serde::{de::DeserializeOwned, Serialize};
 
 const CRC: Crc<u8> = Crc::<u8>::new(&CRC_8_BLUETOOTH);
 
-pub fn cs_encode<S: Serialize + WireSize, const N: usize>(value: &S) -> Result<Vec<u8, N>, ProtoError> {
+pub fn cs_encode<S: Serialize + WireSize, const N: usize>(
+    value: &S,
+) -> Result<Vec<u8, N>, ProtoError> {
     if N < S::CS_MAX_SIZE {
         return Err(ProtoError::buffer_size());
     }
@@ -20,7 +22,9 @@ pub fn cs_encode<S: Serialize + WireSize, const N: usize>(value: &S) -> Result<V
     Ok(buf)
 }
 
-pub fn wire_encode<S: Serialize + WireSize, const N: usize>(value: &S) -> Result<Vec<u8, N>, ProtoError> {
+pub fn wire_encode<S: Serialize + WireSize, const N: usize>(
+    value: &S,
+) -> Result<Vec<u8, N>, ProtoError> {
     if N < S::WIRE_MAX_SIZE {
         return Err(ProtoError::buffer_size());
     }
@@ -28,8 +32,11 @@ pub fn wire_encode<S: Serialize + WireSize, const N: usize>(value: &S) -> Result
     let buf = cs_encode::<S, N>(value)?;
 
     let mut cobs_buf: Vec<u8, N> = Vec::new();
-    cobs_buf.resize(N, 0).map_err(|_| ProtoError::invariant(0x2))?;
-    let result_len = cobs::try_encode(&buf, &mut cobs_buf).map_err(|_| ProtoError::invariant(0x3))?;
+    cobs_buf
+        .resize(N, 0)
+        .map_err(|_| ProtoError::invariant(0x2))?;
+    let result_len =
+        cobs::try_encode(&buf, &mut cobs_buf).map_err(|_| ProtoError::invariant(0x3))?;
     cobs_buf.truncate(result_len);
     cobs_buf.push(0).map_err(|_| ProtoError::invariant(0x4))?;
 

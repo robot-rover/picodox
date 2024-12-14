@@ -5,16 +5,9 @@ use serde::{Deserialize, Serialize};
 pub enum ProtoError {
     BufferSize,
     PostcardError(u8),
-    CrcMismatch {
-        calculated: u8,
-        actual: u8,
-    },
-    BadLength {
-        len: u8,
-    },
-    Invariant {
-        kind: u8,
-    },
+    CrcMismatch { calculated: u8, actual: u8 },
+    BadLength { len: u8 },
+    Invariant { kind: u8 },
 }
 
 impl ProtoError {
@@ -30,7 +23,6 @@ impl ProtoError {
         ProtoError::BadLength {
             len: len.try_into().unwrap_or(u8::MAX),
         }
-
     }
 
     pub fn invariant(kind: u8) -> Self {
@@ -43,4 +35,3 @@ impl From<postcard::Error> for ProtoError {
         ProtoError::PostcardError(err as u8)
     }
 }
-

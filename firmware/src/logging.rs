@@ -1,16 +1,22 @@
-
 use core::{cell::RefCell, ptr::addr_of_mut, sync::atomic::Ordering};
 
-use critical_section;
 use circular_buffer::CircularBuffer;
-use embassy_sync::{blocking_mutex::{raw::CriticalSectionRawMutex, Mutex}, signal::Signal};
-use embassy_usb::{class::cdc_acm::{CdcAcmClass, Receiver, Sender, State}, driver::Driver, Builder};
+use critical_section;
+use embassy_sync::{
+    blocking_mutex::{raw::CriticalSectionRawMutex, Mutex},
+    signal::Signal,
+};
+use embassy_usb::{
+    class::cdc_acm::{CdcAcmClass, Receiver, Sender, State},
+    driver::Driver,
+    Builder,
+};
 use portable_atomic::AtomicBool;
 
 const MAX_PACKET_SIZE: usize = 64;
 
 struct LoggerComs {
-    buf: Mutex<CriticalSectionRawMutex, RefCell<CircularBuffer< { 2*MAX_PACKET_SIZE }, u8>>>,
+    buf: Mutex<CriticalSectionRawMutex, RefCell<CircularBuffer<{ 2 * MAX_PACKET_SIZE }, u8>>>,
     sig: Signal<CriticalSectionRawMutex, ()>,
 }
 
@@ -119,14 +125,15 @@ impl<'d, D: Driver<'d>> LoggerIf<'d, D> {
             // Add the ZLP to flush buffer if no more data is waiting
             if is_all
                 && send_len == MAX_PACKET_SIZE
-                && GLOBAL_COMS.buf.lock(|buf_cell| buf_cell.borrow().is_empty())
+                && GLOBAL_COMS
+                    .buf
+                    .lock(|buf_cell| buf_cell.borrow().is_empty())
             {
                 // Since this is the error reporting mechanism, just fail silently
                 let _ = self.sender.write_packet(&[]).await;
             }
         }
     }
-
 }
 
 impl<'d, D: Driver<'d>> LoggerRxSink<'d, D> {
@@ -138,7 +145,10 @@ impl<'d, D: Driver<'d>> LoggerRxSink<'d, D> {
     }
 }
 
-pub fn new<'d, D: Driver<'d>>(builder: &mut Builder<'d, D>, state: &'d mut State<'d>) -> (LoggerIf<'d, D>, LoggerRxSink<'d, D>) {
+pub fn new<'d, D: Driver<'d>>(
+    builder: &mut Builder<'d, D>,
+    state: &'d mut State<'d>,
+) -> (LoggerIf<'d, D>, LoggerRxSink<'d, D>) {
     let class = CdcAcmClass::new(builder, state, MAX_PACKET_SIZE as u16);
     let (sender, receiver) = class.split();
 
@@ -153,5 +163,3 @@ pub fn new<'d, D: Driver<'d>>(builder: &mut Builder<'d, D>, state: &'d mut State
         },
     )
 }
-
-

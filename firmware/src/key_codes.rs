@@ -13,14 +13,14 @@ const fn kmod(key_mod: u8) -> Key {
     Key::Mod(KeyMod(key_mod))
 }
 
-pub const KEY_MOD_LCTRL:  Key = kmod(0x01);
+pub const KEY_MOD_LCTRL: Key = kmod(0x01);
 pub const KEY_MOD_LSHIFT: Key = kmod(0x02);
-pub const KEY_MOD_LALT:   Key = kmod(0x04);
-pub const KEY_MOD_LMETA:  Key = kmod(0x08);
-pub const KEY_MOD_RCTRL:  Key = kmod(0x10);
+pub const KEY_MOD_LALT: Key = kmod(0x04);
+pub const KEY_MOD_LMETA: Key = kmod(0x08);
+pub const KEY_MOD_RCTRL: Key = kmod(0x10);
 pub const KEY_MOD_RSHIFT: Key = kmod(0x20);
-pub const KEY_MOD_RALT:   Key = kmod(0x40);
-pub const KEY_MOD_RMETA:  Key = kmod(0x80);
+pub const KEY_MOD_RALT: Key = kmod(0x40);
+pub const KEY_MOD_RMETA: Key = kmod(0x80);
 
 #[derive(Copy, Clone, Debug)]
 pub struct KeyCode(pub u8);

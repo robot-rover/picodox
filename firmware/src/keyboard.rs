@@ -2,11 +2,19 @@ use defmt::{info, warn};
 use embassy_futures::join::join;
 use embassy_rp::gpio::{AnyPin, Input, Level, Output, Pull};
 use embassy_time::Timer;
-use embassy_usb::{class::hid::{Config, HidReader, HidReaderWriter, HidWriter, ReportId, RequestHandler, State}, control::OutResponse, driver::Driver, Builder};
+use embassy_usb::{
+    class::hid::{Config, HidReader, HidReaderWriter, HidWriter, ReportId, RequestHandler, State},
+    control::OutResponse,
+    driver::Driver,
+    Builder,
+};
 use heapless::Vec;
 use usbd_hid::descriptor::{KeyboardReport, SerializedDescriptor as _};
 
-use crate::{key_codes::{Key, KeyCode, KeyMod}, key_matrix};
+use crate::{
+    key_codes::{Key, KeyCode, KeyMod},
+    key_matrix,
+};
 
 pub struct KeyboardIf<'d, D: Driver<'d>, const R: usize, const C: usize> {
     reader: HidReader<'d, D, 1>,
@@ -16,7 +24,12 @@ pub struct KeyboardIf<'d, D: Driver<'d>, const R: usize, const C: usize> {
 }
 
 impl<'d, D: Driver<'d>, const R: usize, const C: usize> KeyboardIf<'d, D, R, C> {
-    pub fn new(builder: &mut Builder<'d, D>, state: &'d mut State<'d>, col_pins: [AnyPin; C], row_pins: [AnyPin; R]) -> Self {
+    pub fn new(
+        builder: &mut Builder<'d, D>,
+        state: &'d mut State<'d>,
+        col_pins: [AnyPin; C],
+        row_pins: [AnyPin; R],
+    ) -> Self {
         let config = Config {
             report_descriptor: KeyboardReport::desc(),
             request_handler: None,
@@ -27,7 +40,7 @@ impl<'d, D: Driver<'d>, const R: usize, const C: usize> KeyboardIf<'d, D, R, C> 
         let (reader, writer) = hid.split();
 
         let col_pins = col_pins.map(|pin| Output::new(pin, Level::Low));
-        let row_pins  = row_pins.map(|pin| Input::new(pin, Pull::Down));
+        let row_pins = row_pins.map(|pin| Input::new(pin, Pull::Down));
 
         KeyboardIf {
             reader,
@@ -42,7 +55,7 @@ impl<'d, D: Driver<'d>, const R: usize, const C: usize> KeyboardIf<'d, D, R, C> 
             loop {
                 info!("Starting Scan");
                 // Create a report
-                let mut code_vec: Vec::<u8, 6> = Vec::new();
+                let mut code_vec: Vec<u8, 6> = Vec::new();
                 let mut modifier = 0u8;
                 for (col, col_pin) in self.col_pins.iter_mut().enumerate() {
                     col_pin.set_high();
@@ -53,7 +66,7 @@ impl<'d, D: Driver<'d>, const R: usize, const C: usize> KeyboardIf<'d, D, R, C> 
                                 Key::Code(KeyCode(byte)) => {
                                     // Ignore ROVR Overflow for now
                                     let _ = code_vec.push(byte);
-                                },
+                                }
                             }
                         }
                     }

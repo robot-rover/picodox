@@ -49,39 +49,45 @@ impl Uf2Block {
 
     pub fn parse(data: &[u8]) -> anyhow::Result<Vec<Self>> {
         if data.len() % 512 != 0 {
-            bail!("Invalid UF2 block size ({} % 512 == {})", data.len(), data.len() % 512);
+            bail!(
+                "Invalid UF2 block size ({} % 512 == {})",
+                data.len(),
+                data.len() % 512
+            );
         }
 
-        data.chunks_exact(512).map(|chunk| {
-            let mut target: [u8; 512] = [0; 512];
-            target.clone_from_slice(chunk);
+        data.chunks_exact(512)
+            .map(|chunk| {
+                let mut target: [u8; 512] = [0; 512];
+                target.clone_from_slice(chunk);
 
-            let block_res: Result<Uf2Block, _> = try_transmute!(target);
-            let block = match block_res {
-                Ok(block) => block,
-                Err(err) => bail!("Unable to parse bytes to uf2 header: {:?}", err),
-            };
+                let block_res: Result<Uf2Block, _> = try_transmute!(target);
+                let block = match block_res {
+                    Ok(block) => block,
+                    Err(err) => bail!("Unable to parse bytes to uf2 header: {:?}", err),
+                };
 
-            if block.magic0 != UF2_MAGIC_START0 {
-                bail!("Invalid UF2 header (magic0: {:x?})", block.magic0);
-            }
-            if block.magic1 != UF2_MAGIC_START1 {
-                bail!("Invalid UF2 header (magic1: {:x?})", block.magic1);
-            }
-            if block.magic2 != UF2_MAGIC_END {
-                bail!("Invalid UF2 header (magic2: {:x?})", block.magic2);
-            }
+                if block.magic0 != UF2_MAGIC_START0 {
+                    bail!("Invalid UF2 header (magic0: {:x?})", block.magic0);
+                }
+                if block.magic1 != UF2_MAGIC_START1 {
+                    bail!("Invalid UF2 header (magic1: {:x?})", block.magic1);
+                }
+                if block.magic2 != UF2_MAGIC_END {
+                    bail!("Invalid UF2 header (magic2: {:x?})", block.magic2);
+                }
 
-            if Uf2Flags::from_bits(block.flags_data).is_none() {
-                bail!("Invalid UF2 flags ({:x?})", block.flags_data);
-            }
+                if Uf2Flags::from_bits(block.flags_data).is_none() {
+                    bail!("Invalid UF2 flags ({:x?})", block.flags_data);
+                }
 
-            if block.payload_size > 476 {
-                bail!("Invalid UF2 payload size ({})", block.payload_size);
-            }
+                if block.payload_size > 476 {
+                    bail!("Invalid UF2 payload size ({})", block.payload_size);
+                }
 
-            Ok(block)
-        }).collect::<Result<Vec<_>, _>>()
+                Ok(block)
+            })
+            .collect::<Result<Vec<_>, _>>()
     }
 }
 

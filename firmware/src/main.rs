@@ -13,12 +13,12 @@
 #[macro_use]
 mod util;
 
-mod serial;
+mod key_codes;
+mod key_matrix;
+mod keyboard;
 mod logging;
 mod neopixel;
-mod keyboard;
-mod key_matrix;
-mod key_codes;
+mod serial;
 
 use core::sync::atomic::Ordering;
 
@@ -38,12 +38,12 @@ use neopixel::{Color, Neopixel};
 use panic_halt as _;
 
 use embassy_executor::Spawner;
-use embassy_rp::pio::{self, Pio};
-use embassy_usb::{Config, Handler, UsbDevice};
-use embassy_usb::class::{cdc_acm, hid};
-use embassy_rp::usb::{self, Driver};
-use embassy_rp::peripherals::{PIO0, USB};
 use embassy_rp::bind_interrupts;
+use embassy_rp::peripherals::{PIO0, USB};
+use embassy_rp::pio::{self, Pio};
+use embassy_rp::usb::{self, Driver};
+use embassy_usb::class::{cdc_acm, hid};
+use embassy_usb::{Config, Handler, UsbDevice};
 use portable_atomic::AtomicBool;
 use serial::SerialIf;
 use static_cell::StaticCell;
@@ -65,8 +65,8 @@ async fn main(spawner: Spawner) {
 
     // Create embassy-usb Config
     let config = {
-        const USB_VID : u16 = 0x08B9;
-        const USB_PID : u16 = 0xBEEF;
+        const USB_VID: u16 = 0x08B9;
+        const USB_PID: u16 = 0xBEEF;
 
         let mut config = Config::new(USB_VID, USB_PID);
         config.device_class = 0; // from: https://www.usb.org/defined-class-codes
@@ -123,10 +123,24 @@ async fn main(spawner: Spawner) {
         let state = STATE.init(Default::default());
         // Row Pins (from kb2040 pin numbers)
         // [1, 2, 7, 8, 9]
-        let row_pins = [p.PIN_0.degrade(), p.PIN_1.degrade(), p.PIN_4.degrade(), p.PIN_5.degrade(), p.PIN_6.degrade()];
+        let row_pins = [
+            p.PIN_0.degrade(),
+            p.PIN_1.degrade(),
+            p.PIN_4.degrade(),
+            p.PIN_5.degrade(),
+            p.PIN_6.degrade(),
+        ];
         // Col Pins (from kb2040 pin numbers)
         // [17, 18, 19, 20, 12, 11, 10]
-        let col_pins = [p.PIN_26.degrade(), p.PIN_27.degrade(), p.PIN_28.degrade(), p.PIN_29.degrade(), p.PIN_9.degrade(), p.PIN_8.degrade(), p.PIN_7.degrade()];
+        let col_pins = [
+            p.PIN_26.degrade(),
+            p.PIN_27.degrade(),
+            p.PIN_28.degrade(),
+            p.PIN_29.degrade(),
+            p.PIN_9.degrade(),
+            p.PIN_8.degrade(),
+            p.PIN_7.degrade(),
+        ];
         KeyboardIf::new(&mut builder, state, col_pins, row_pins)
     };
 
@@ -154,7 +168,6 @@ async fn shutdown() {
 #[embassy_executor::task]
 async fn serial_task(mut serial: SerialIf<'static, Driver<'static, USB>>) {
     serial.run().await;
-
 }
 
 #[embassy_executor::task]
@@ -196,7 +209,11 @@ async fn hello_task(led_signal: &'static Signal<CriticalSectionRawMutex, Color>)
             b = !b;
         }
 
-        led_signal.signal(if b { Color::wheel(i as u8) } else { Color::new(0, 0, 0) });
+        led_signal.signal(if b {
+            Color::wheel(i as u8)
+        } else {
+            Color::new(0, 0, 0)
+        });
         Timer::after_millis(100).await;
         i += 1;
     }
@@ -237,7 +254,9 @@ impl Handler for MyDeviceHandler {
     fn configured(&mut self, configured: bool) {
         self.configured.store(configured, Ordering::Relaxed);
         if configured {
-            info!("Device configured, it may now draw up to the configured current limit from Vbus.")
+            info!(
+                "Device configured, it may now draw up to the configured current limit from Vbus."
+            )
         } else {
             info!("Device is no longer configured, the Vbus current limit is 100mA.");
         }

@@ -3,7 +3,7 @@
 use errors::ProtoError;
 use heapless::Vec;
 use postcard::experimental::max_size::MaxSize;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 pub mod errors;
 pub mod proto_impl;
@@ -33,10 +33,7 @@ pub struct Version {
     minor: u16,
 }
 
-pub const CURRENT_VERSION: Version = Version {
-    major: 0,
-    minor: 0,
-};
+pub const CURRENT_VERSION: Version = Version { major: 0, minor: 0 };
 
 pub const DATA_COUNT: usize = 8;
 
@@ -44,12 +41,8 @@ pub const DATA_COUNT: usize = 8;
 pub enum Command {
     Reset,
     UsbDfu,
-    FlashFw {
-        count: u16,
-    },
-    EchoMsg {
-        count: u16,
-    },
+    FlashFw { count: u16 },
+    EchoMsg { count: u16 },
     Data([u8; DATA_COUNT]),
 }
 
@@ -64,9 +57,7 @@ pub enum AckType {
 pub enum Response {
     Ack(AckType),
     Nack,
-    EchoMsg {
-        count: u16,
-    },
+    EchoMsg { count: u16 },
     Data([u8; DATA_COUNT]),
     PacketErr(ProtoError),
 }
@@ -79,7 +70,6 @@ pub enum KeyResponse {
     KeyUpdate(Vec<u8, MAX_KEYS>),
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -89,11 +79,9 @@ mod tests {
     #[test]
     fn check_enum_size() {
         let short = Response::EchoMsg { count: 12 };
-        let short_bytes = to_stdvec(&short)
-            .expect("Cannot serialize short response");
+        let short_bytes = to_stdvec(&short).expect("Cannot serialize short response");
         let long = Response::Data([1u8; DATA_COUNT]);
-        let long_bytes = to_stdvec(&long)
-            .expect("Cannot serialize long response");
+        let long_bytes = to_stdvec(&long).expect("Cannot serialize long response");
         assert_eq!(short_bytes.len(), 2);
         assert_eq!(long_bytes.len(), 9);
     }
@@ -105,7 +93,8 @@ mod tests {
     fn check_vec_size() {
         let mut short_vec = Vec::new();
         short_vec.push(1u8).unwrap();
-        let short_bytes = to_stdvec(&KeyResponse::KeyUpdate(short_vec)).expect("Cannot serialize short vec");
+        let short_bytes =
+            to_stdvec(&KeyResponse::KeyUpdate(short_vec)).expect("Cannot serialize short vec");
 
         let long_arr = TestArrStruct([0u8; 10]);
         let long_bytes = to_stdvec(&long_arr).expect("Cannot serialize long vec");

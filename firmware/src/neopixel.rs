@@ -1,5 +1,9 @@
-
-use embassy_rp::{clocks, dma::AnyChannel, pio::{Config, FifoJoin, Instance, Pio, PioPin, ShiftConfig, ShiftDirection, StateMachine}, Peripheral, PeripheralRef};
+use embassy_rp::{
+    clocks,
+    dma::AnyChannel,
+    pio::{Config, FifoJoin, Instance, Pio, PioPin, ShiftConfig, ShiftDirection, StateMachine},
+    Peripheral, PeripheralRef,
+};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
 use embassy_time::Timer;
 use fixed::types::U24F8;
@@ -11,7 +15,6 @@ mod timing {
     pub const T3: u8 = 3; // stop bit
     pub const CYCLES_PER_BIT: u32 = (T1 + T2 + T3) as u32;
 }
-
 
 fn assemble_program() -> pio::Program<32> {
     let side_set = pio::SideSet::new(false, 1, false);
@@ -37,16 +40,18 @@ fn assemble_program() -> pio::Program<32> {
 }
 
 pub struct Color {
-    r: u8, g: u8, b: u8,
+    r: u8,
+    g: u8,
+    b: u8,
 }
 
 impl Color {
     pub fn new(r: u8, g: u8, b: u8) -> Self {
-        Color { r, g, b, }
+        Color { r, g, b }
     }
 
     pub fn wheel(mut wheel_pos: u8) -> Self {
-       wheel_pos = 255 - wheel_pos;
+        wheel_pos = 255 - wheel_pos;
         if wheel_pos < 85 {
             Self::new(255 - wheel_pos * 3, 0, wheel_pos * 3)
         } else if wheel_pos < 170 {
@@ -65,16 +70,24 @@ impl From<Color> for u32 {
     }
 }
 
-pub struct Neopixel<'d, P: Instance>
-where {
+pub struct Neopixel<'d, P: Instance> {
     dma: PeripheralRef<'d, AnyChannel>,
     sm: StateMachine<'d, P, 0>,
     signal: &'d Signal<CriticalSectionRawMutex, Color>,
 }
 
 impl<'d, P: Instance> Neopixel<'d, P> {
-    pub fn new(pio: Pio<'d, P>, sig_pin: impl PioPin, dma: impl Peripheral<P = AnyChannel> + 'd, color_signal: &'d Signal<CriticalSectionRawMutex, Color>) -> Self {
-        let Pio { mut common, mut sm0, .. } = pio;
+    pub fn new(
+        pio: Pio<'d, P>,
+        sig_pin: impl PioPin,
+        dma: impl Peripheral<P = AnyChannel> + 'd,
+        color_signal: &'d Signal<CriticalSectionRawMutex, Color>,
+    ) -> Self {
+        let Pio {
+            mut common,
+            mut sm0,
+            ..
+        } = pio;
 
         let prg = assemble_program();
         let mut cfg = Config::default();
@@ -119,7 +132,4 @@ impl<'d, P: Instance> Neopixel<'d, P> {
             Timer::after_micros(55).await;
         }
     }
-
-
 }
-
