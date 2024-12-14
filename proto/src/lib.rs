@@ -54,12 +54,18 @@ pub enum AckType {
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, MaxSize)]
+pub enum NackType {
+    Unexpected,
+    PacketErr(ProtoError),
+    BufferOverflow,
+}
+
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, MaxSize)]
 pub enum Response {
     Ack(AckType),
-    Nack,
+    Nack(NackType),
     EchoMsg { count: u16 },
     Data([u8; DATA_COUNT]),
-    PacketErr(ProtoError),
 }
 
 pub const MAX_KEYS: usize = 35;
@@ -68,6 +74,19 @@ pub const MAX_KEYS: usize = 35;
 pub enum KeyResponse {
     Response(Response),
     KeyUpdate(Vec<u8, MAX_KEYS>),
+}
+
+impl KeyResponse {
+    pub fn keys<const N: usize>(key_codes: [u8; N]) -> Self {
+        let mut vec = Vec::new();
+        vec.extend_from_slice(&key_codes)
+            .expect("key_codes is too long");
+        KeyResponse::KeyUpdate(vec)
+    }
+
+    pub const fn no_keys() -> Self {
+        KeyResponse::KeyUpdate(Vec::new())
+    }
 }
 
 #[cfg(test)]

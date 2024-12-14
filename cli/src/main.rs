@@ -260,7 +260,7 @@ fn send_echo(dev: &str, content: &str) -> Result<()> {
 
     let resp_count = match resp {
         Response::EchoMsg { count } => count as usize,
-        Response::PacketErr(err) => bail!("Received Packet error waiting for EchoMsg: {:?}", err),
+        Response::Nack(err) => bail!("Received nack waiting for EchoMsg: {:?}", err),
         other => bail!("Unexpected response: {:?}, expecting EchoMsg", other),
     };
 
@@ -269,7 +269,7 @@ fn send_echo(dev: &str, content: &str) -> Result<()> {
         let resp: Response = recv_response(&mut port)?;
         let resp_data = match resp {
             Response::Data(data) => data,
-            Response::PacketErr(err) => bail!("Received Packet error waiting for Data: {:?}", err),
+            Response::Nack(err) => bail!("Received nack waiting for Data: {:?}", err),
             other => bail!("Unexpected response: {:?}, expecting Data", other),
         };
         let copy_count = cmp::min(DATA_COUNT as usize, resp_count - i);
@@ -288,7 +288,7 @@ mod tests {
     use picodox_proto::{
         errors::ProtoError,
         proto_impl::{self},
-        WireSize,
+        KeyResponse, NackType, WireSize,
     };
 
     use super::*;
@@ -302,8 +302,16 @@ mod tests {
     const RESPONSE_CASES: &[Response] = &[
         Response::EchoMsg { count: 128 },
         Response::Data([1, 2, 3, 4, 5, 6, 0, 0]),
-        Response::PacketErr(ProtoError::Invariant { kind: 2 }),
+        Response::Nack(NackType::PacketErr(ProtoError::BufferSize)),
     ];
+
+    fn key_cases() -> Vec<KeyResponse> {
+        vec![
+            KeyResponse::Response(Response::Ack(AckType::AckReset)),
+            KeyResponse::keys([8u8, 12u8, 1u8]),
+            KeyResponse::no_keys(),
+        ]
+    }
 
     fn ser<S: Serialize + WireSize + fmt::Debug, const N: usize>(
         case: usize,
@@ -378,5 +386,10 @@ mod tests {
     #[test]
     fn response_cs() {
         round_trip::<Response, { Response::CS_MAX_SIZE }>(2, 2, RESPONSE_CASES)
+    }
+
+    #[test]
+    fn key_response_cs() {
+        round_trip::<KeyResponse, { KeyResponse::CS_MAX_SIZE }>(2, 2, &key_cases())
     }
 }

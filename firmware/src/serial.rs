@@ -1,11 +1,16 @@
+use core::future::Future;
+
 use circular_buffer::CircularBuffer;
+use defmt::{error, warn};
 use embassy_rp::{rom_data, watchdog::Watchdog};
 use embassy_usb::{
     class::cdc_acm::{CdcAcmClass, State},
     driver::Driver,
     Builder,
 };
-use picodox_proto::{AckType, Command, Response, WireSize};
+use picodox_proto::{
+    errors::ProtoError, AckType, Command, NackType, Response, WireSize, DATA_COUNT,
+};
 // USB Communications Class Device support
 
 use picodox_proto::proto_impl;
@@ -22,6 +27,18 @@ where
     watchdog: Watchdog,
 }
 
+trait DataRecvr<'d, D: Driver<'d>> {
+    async fn callback(&mut self, s: &mut SerialIf<'d, D>, data: &[u8; DATA_COUNT]);
+}
+
+struct EchoRecvr;
+
+impl<'d, D: Driver<'d>> DataRecvr<'d, D> for EchoRecvr {
+    async fn callback(&mut self, s: &mut SerialIf<'d, D>, data: &[u8; DATA_COUNT]) {
+        s.send_packet(&Response::Data(*data)).await
+    }
+}
+
 impl<'d, D: Driver<'d>> SerialIf<'d, D> {
     pub fn new(builder: &mut Builder<'d, D>, state: &'d mut State<'d>, watchdog: Watchdog) -> Self {
         SerialIf {
@@ -32,51 +49,96 @@ impl<'d, D: Driver<'d>> SerialIf<'d, D> {
         }
     }
 
+    async fn recv_cmd(&mut self) -> Result<Command, NackType> {
+        let mut lost_bytes = false;
+        let line_end = loop {
+            // Check if we have enough bytes already
+            if let Some(line_end) = self.coms_buf.iter().position(|&x| x == 0u8) {
+                if lost_bytes {
+                    // Remove truncated packet from the buffer
+                    self.coms_buf
+                        .truncate_front(self.coms_buf.len() - line_end - 1);
+                    return Err(NackType::BufferOverflow);
+                } else {
+                    break line_end;
+                }
+            }
+
+            // Otherwise, wait for another packet
+            let count = async_unwrap!(res self.class.read_packet(&mut self.pack_buf).await,
+                "Usb read_packet error: {}");
+
+            // Log an error if we overflow our buffer
+            let open_cap = self.coms_buf.capacity() - self.coms_buf.len();
+            if open_cap < count {
+                error!("Dropping command packet bytes (coms_buf has {} open bytes, pack_buf has {} bytes)",
+                    open_cap, count);
+                lost_bytes = true;
+            }
+            self.coms_buf.extend_from_slice(&self.pack_buf[..count]);
+        };
+
+        // Now we have at least a whole packet in the buffer
+        let contig = self.coms_buf.make_contiguous();
+        let message_buf = &mut contig[..=line_end];
+
+        let decoded = proto_impl::wire_decode::<Command>(message_buf);
+        // Remove the decoded bytes from the circular buffer
+        self.coms_buf
+            .truncate_front(self.coms_buf.len() - line_end - 1);
+
+        decoded.map_err(|err| NackType::PacketErr(err))
+    }
+
+    async fn recv_data<F: DataRecvr<'d, D>>(&mut self, count: u16, mut callback: F) {
+        for _bytes_recieved in (0..count).step_by(DATA_COUNT) {
+            let res = self.recv_cmd().await.and_then(|cmd| match cmd {
+                Command::Data(data) => Ok(data),
+                _ => Err(NackType::Unexpected),
+            });
+            match res {
+                Ok(data) => callback.callback(self, &data).await,
+                Err(reason) => {
+                    self.send_packet(&Response::Nack(reason)).await;
+                    continue;
+                }
+            }
+        }
+    }
+
     pub async fn run(&mut self) -> ! {
         loop {
-            let count = async_unwrap!(res self.class.read_packet(&mut self.pack_buf).await, "Usb read_packet error: {}");
-
-            // TODO: Error if dropping command characters
-            if self.coms_buf.capacity() - self.coms_buf.len() < count {}
-            self.coms_buf.extend_from_slice(&self.pack_buf[..count]);
-
-            if let Some(line_end) = self.coms_buf.iter().position(|&x| x == 0u8) {
-                let contig = self.coms_buf.make_contiguous();
-                let message_buf = &mut contig[..=line_end];
-                // TODO: Error handling
-                let message = match proto_impl::wire_decode::<Command>(message_buf) {
-                    Ok(msg) => msg,
-                    Err(err) => {
-                        self.send_packet(&Response::PacketErr(err)).await;
-                        self.coms_buf
-                            .truncate_front(self.coms_buf.len() - line_end - 1);
-                        continue;
-                    }
-                };
-                self.coms_buf
-                    .truncate_front(self.coms_buf.len() - line_end - 1);
-
-                match message {
-                    Command::Reset => {
-                        self.send_packet(&Response::Ack(AckType::AckReset)).await;
-                        crate::shutdown().await;
-                        self.watchdog.trigger_reset();
-                        loop {}
-                    }
-                    Command::UsbDfu => {
-                        self.send_packet(&Response::Ack(AckType::AckUsbDfu)).await;
-                        crate::shutdown().await;
-                        rom_data::reset_to_usb_boot(0, 0);
-                        loop {}
-                    }
-                    Command::EchoMsg { count } => {
-                        self.send_packet(&Response::EchoMsg { count }).await;
-                    }
-                    Command::Data(data) => {
-                        self.send_packet(&Response::Data(data)).await;
-                    }
-                    Command::FlashFw { count } => todo!(),
+            let res = self.recv_cmd().await;
+            let message = match res {
+                Ok(cmd) => cmd,
+                Err(reason) => {
+                    // In case of an error here, just respond with an error
+                    self.send_packet(&Response::Nack(reason)).await;
+                    continue;
                 }
+            };
+            match message {
+                Command::Reset => {
+                    self.send_packet(&Response::Ack(AckType::AckReset)).await;
+                    crate::shutdown().await;
+                    self.watchdog.trigger_reset();
+                    loop {}
+                }
+                Command::UsbDfu => {
+                    self.send_packet(&Response::Ack(AckType::AckUsbDfu)).await;
+                    crate::shutdown().await;
+                    rom_data::reset_to_usb_boot(0, 0);
+                    loop {}
+                }
+                Command::EchoMsg { count } => {
+                    self.send_packet(&Response::EchoMsg { count }).await;
+                    self.recv_data(count, EchoRecvr).await;
+                }
+                Command::Data(_data) => {
+                    self.send_packet(&Response::Nack(NackType::Unexpected))
+                        .await;
+                }
+                Command::FlashFw { count } => {}
             }
         }
     }
