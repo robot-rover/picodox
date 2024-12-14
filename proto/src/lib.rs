@@ -52,14 +52,13 @@ pub enum Command {
 pub enum AckType {
     AckReset,
     AckUsbDfu,
+    AckFlashFw,
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, MaxSize)]
 pub enum Response {
     Ack(AckType),
-    LogMsg {
-        count: u16,
-    },
+    Nack,
     EchoMsg {
         count: u16,
     },
@@ -76,7 +75,7 @@ mod tests {
 
     #[test]
     fn check_enum_size() {
-        let short = Response::LogMsg { count: 12 };
+        let short = Response::EchoMsg { count: 12 };
         let short_bytes = to_stdvec(&short)
             .expect("Cannot serialize short response");
         let long = Response::Data([1u8; DATA_COUNT]);

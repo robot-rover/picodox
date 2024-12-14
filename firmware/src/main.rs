@@ -10,6 +10,9 @@
 #![no_std]
 #![no_main]
 
+#[macro_use]
+mod util;
+
 mod serial;
 mod logging;
 mod neopixel;
@@ -22,7 +25,7 @@ use core::sync::atomic::Ordering;
 use defmt::info;
 use embassy_futures::select::select;
 use embassy_rp::dma::AnyChannel;
-use embassy_rp::gpio::{Flex, Pin};
+use embassy_rp::gpio::Pin;
 use embassy_rp::watchdog::Watchdog;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::signal::Signal;

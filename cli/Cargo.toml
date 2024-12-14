@@ -14,3 +14,5 @@ cobs = "0.2.3"
 bufreaderwriter = "0.2.4"
 serde = "1.0.215"
 usb_enumeration = "0.2.1"
+bitflags = "2.6.0"
+zerocopy = { version = "0.8.13", features = ["std", "derive"] }

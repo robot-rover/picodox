@@ -1,3 +1,7 @@
+compile:
+  cargo build
+  elf2uf2-rs target/thumbv6m-none-eabi/debug/picodox-firmware target/thumbv6m-none-eabi/debug/picodox-firmware.uf2
+
 flash:
   -cd ../cli && cargo run flash
   cargo build

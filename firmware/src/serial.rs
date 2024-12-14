@@ -34,14 +34,12 @@ impl<'d, D: Driver<'d>> SerialIf<'d, D> {
 
     pub async fn run(&mut self) -> ! {
         loop {
-            let count = loop {
-                match self.class.read_packet(&mut self.pack_buf).await {
-                    Ok(count) => break count,
-                    Err(_e) => {},
-                }
-            };
+            let count = async_unwrap!(res self.class.read_packet(&mut self.pack_buf).await, "Usb read_packet error: {}");
 
             // TODO: Error if dropping command characters
+            if self.coms_buf.capacity() - self.coms_buf.len() < count {
+
+            }
             self.coms_buf.extend_from_slice(&self.pack_buf[..count]);
 
             if let Some(line_end) = self.coms_buf.iter().position(|&x| x == 0u8) {
@@ -77,6 +75,7 @@ impl<'d, D: Driver<'d>> SerialIf<'d, D> {
                     Command::Data(data) => {
                         self.send_packet(Response::Data(data), SERIAL_DATA_UCID).await;
                     },
+                    Command::FlashFw { count } => todo!(),
                 }
             }
         }
@@ -92,11 +91,14 @@ impl<'d, D: Driver<'d>> SerialIf<'d, D> {
     async fn send_buf(&mut self, buf: &[u8]) {
         let mut chunks_exact = buf.chunks_exact(MAX_PACKET_SIZE);
 
+        // These two errors will only occur if an endpoint is disabled or
+        // if the send/recv buffer is too small, both should be considered
+        // unrecoverable as they require a recompile to fix
         for chunk in chunks_exact.by_ref() {
-            self.class.write_packet(chunk).await;
+            async_unwrap!(res self.class.write_packet(chunk).await, "Error sending buffer: {}");
         }
 
-        self.class.write_packet(chunks_exact.remainder()).await;
+        async_unwrap!(res self.class.write_packet(chunks_exact.remainder()).await, "Error sending buffer: {}");
     }
 }
 

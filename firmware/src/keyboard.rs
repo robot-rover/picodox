@@ -1,6 +1,6 @@
 use defmt::{info, warn};
 use embassy_futures::join::join;
-use embassy_rp::gpio::{AnyPin, Flex, Input, Level, Output, Pin, Pull};
+use embassy_rp::gpio::{AnyPin, Input, Level, Output, Pull};
 use embassy_time::Timer;
 use embassy_usb::{class::hid::{Config, HidReader, HidReaderWriter, HidWriter, ReportId, RequestHandler, State}, control::OutResponse, driver::Driver, Builder};
 use heapless::Vec;

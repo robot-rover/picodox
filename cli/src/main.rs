@@ -1,12 +1,15 @@
-use std::{cmp, fmt::Debug, io::{BufRead, BufReader, ErrorKind, Read, Write}, thread, time::{Duration, Instant}};
+use std::{cmp, fmt::Debug, fs, io::{BufRead, BufReader, Write}, thread, time::{Duration, Instant}};
+
+mod uf2;
 
 use anyhow::{anyhow, bail, Context, Result};
 use clap::{Parser, Subcommand};
 
 use crc::{Crc, CRC_8_BLUETOOTH};
-use picodox_proto::{Command, Response, DATA_COUNT};
+use picodox_proto::{AckType, Command, Response, DATA_COUNT};
 use serde::{de::DeserializeOwned, Serialize};
 use serialport::SerialPort;
+use uf2::{Uf2Block, Uf2Flags};
 
 const SERIAL_TIMEOUT: Duration = Duration::from_millis(100);
 const CRC: Crc<u8> = Crc::<u8>::new(&CRC_8_BLUETOOTH);
@@ -42,6 +45,11 @@ enum SubCommand {
         #[arg(help = "The content to send")]
         msg: String,
     },
+    #[command(about = "Analyze a UF2 file")]
+    Uf2 {
+        #[arg(help = "The file to analyze")]
+        path: String,
+    },
 }
 
 fn main() {
@@ -53,6 +61,7 @@ fn main() {
         SubCommand::ListSerial => list_serial(),
         SubCommand::Echo { msg } => send_echo(&args.device, &msg),
         SubCommand::Flash { path } => flash_fw(&args.device, &path),
+        SubCommand::Uf2 { path } => analyze_uf2(&path),
     };
 
     if let Err(err) = res {
@@ -61,11 +70,47 @@ fn main() {
     }
 }
 
+fn analyze_uf2(path: &str) -> Result<()> {
+    let file_contents = fs::read(path)
+        .with_context(|| format!("Unable to open file '{}'", path))?;
+
+    let blocks = Uf2Block::parse(&file_contents)?;
+
+    let mut bounds = match blocks.first() {
+        Some(block) => block.get_bounds(),
+        None => bail!("No blocks in file!"),
+    };
+
+    for block in blocks[1..].iter().filter(|b| !b.get_flags().contains(Uf2Flags::NotMainFlash)) {
+        let new_bounds = block.get_bounds();
+        bounds = if bounds.1 == new_bounds.0 {
+            (bounds.0, new_bounds.1)
+        } else {
+            println!("{:x} ({} bytes)", bounds.0, bounds.1 - bounds.0);
+            new_bounds
+        };
+    }
+
+    println!("0x{:x} ({} bytes)", bounds.0, bounds.1 - bounds.0);
+
+    Ok(())
+}
+
 fn flash_fw(dev: &str, path: &str) -> Result<()> {
     let mut port = open_port(dev)?;
-    send_command(&mut port.get_mut(), &Command::Reset)?;
+    let fw_bytes = fs::read(path)?;
+    let fw_len: u16 = fw_bytes.len().try_into().context("Firmware is too large")?;
+    send_command(&mut port.get_mut(), &Command::FlashFw { count: fw_len })?;
+    for chunk in fw_bytes.chunks(DATA_COUNT as usize) {
+        let mut data = [0u8; DATA_COUNT];
+        data[..chunk.len()].copy_from_slice(chunk);
+        send_command(&mut port.get_mut(), &Command::Data(data))?;
+    }
     let resp: Response = recv_response(&mut port)?;
-    println!("Reset Response: {resp:?}");
+    match resp {
+        Response::Ack(AckType::AckFlashFw) => println!("Firmware Update acknowledged"),
+        other => bail!("Unexpected response: {:?}, expecting AckFlashFw", other),
+    };
 
     Ok(())
 }
@@ -74,7 +119,10 @@ fn reset(dev: &str) -> Result<()> {
     let mut port = open_port(dev)?;
     send_command(&mut port.get_mut(), &Command::Reset)?;
     let resp: Response = recv_response(&mut port)?;
-    println!("Reset Response: {resp:?}");
+    match resp {
+        Response::Ack(AckType::AckReset) => println!("Reset acknowledged"),
+        other => bail!("Unexpected response: {:?}, expecting AckReset", other),
+    };
 
     Ok(())
 }
@@ -91,7 +139,10 @@ fn usb_dfu(dev: &str) -> Result<()> {
     let mut port = open_port(dev)?;
     send_command(&mut port.get_mut(), &Command::UsbDfu)?;
     let resp: Response = recv_response(&mut port)?;
-    println!("Reset Response: {resp:?}");
+    match resp {
+        Response::Ack(AckType::AckUsbDfu) => println!("Reset acknowledged"),
+        other => bail!("Unexpected response: {:?}, expecting AckUsbDfu", other),
+    };
 
     let now = Instant::now();
     while (Instant::now() - now) < Duration::from_secs(5) {
@@ -101,7 +152,7 @@ fn usb_dfu(dev: &str) -> Result<()> {
             thread::sleep(Duration::from_millis(100));
         }
     }
-    return Err(anyhow!("Timeout waiting for PICOBOOT device"));
+    bail!("Timeout waiting for PICOBOOT device");
 }
 
 fn open_port(device: &str) -> Result<BufReader<Box<dyn SerialPort>>> {
@@ -144,7 +195,6 @@ fn recv_response<R: BufRead, D: DeserializeOwned>(port: &mut R) -> Result<D> {
     // Decode COBS
     let mut cobs_decoded =  cobs::decode_vec(&read_buf)
         .ok().ok_or_else(|| anyhow!("Invalid packet encountered (illegal cobs) {:0x?}", read_buf))?;
-        //bail!("")
 
     let actual_crc = if let Some(crc) = cobs_decoded.pop() {
         crc
@@ -222,13 +272,13 @@ fn  send_echo(dev: &str, content: &str) -> Result<()> {
 mod tests {
     use std::fmt;
 
-    use picodox_proto::{errors::{ProtoError, Ucid}, proto_impl::{self, wire_encode}, WireSize};
+    use picodox_proto::{errors::{ProtoError, Ucid}, proto_impl::{self}, WireSize};
 
     use super::*;
 
     fn command_cases() -> Vec<Command> {
         vec![
-            Command::FlashFw,
+            Command::FlashFw { count: 10 },
             Command::Data([0, 0, 3, 4, 5, 6, 0, 0]),
             Command::EchoMsg { count: 7 },
         ]
