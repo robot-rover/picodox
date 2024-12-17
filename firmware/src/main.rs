@@ -13,6 +13,7 @@
 #[macro_use]
 mod util;
 
+mod dfu;
 mod key_codes;
 mod key_matrix;
 mod keyboard;
@@ -23,6 +24,7 @@ mod serial;
 use core::sync::atomic::Ordering;
 
 use defmt::info;
+use dfu::{FirmwareRecvr, FirmwareState};
 use embassy_futures::select::select;
 use embassy_rp::dma::AnyChannel;
 use embassy_rp::gpio::Pin;
@@ -39,7 +41,7 @@ use panic_halt as _;
 
 use embassy_executor::Spawner;
 use embassy_rp::bind_interrupts;
-use embassy_rp::peripherals::{PIO0, USB};
+use embassy_rp::peripherals::{FLASH, PIO0, USB};
 use embassy_rp::pio::{self, Pio};
 use embassy_rp::usb::{self, Driver};
 use embassy_usb::class::{cdc_acm, hid};
@@ -58,6 +60,7 @@ static USB_SHUTDOWN: Signal<CriticalSectionRawMutex, ()> = Signal::new();
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
+    // TODO: Cleanup below
     let p = embassy_rp::init(Default::default());
 
     // Create the driver, from the HAL.
@@ -97,11 +100,21 @@ async fn main(spawner: Spawner) {
         builder
     };
 
+    let dfu_state = {
+        static DFU_STATE: StaticCell<FirmwareState> = StaticCell::new();
+        DFU_STATE.init(FirmwareState::new())
+    };
+
     // Create classes on the builder.
     let serial = {
         static STATE: StaticCell<cdc_acm::State> = StaticCell::new();
         let state = STATE.init(Default::default());
-        SerialIf::new(&mut builder, state, Watchdog::new(p.WATCHDOG))
+        SerialIf::new(
+            &mut builder,
+            state,
+            Watchdog::new(p.WATCHDOG),
+            dfu_state.get_intf(),
+        )
     };
 
     let (logger, logger_rx) = {
@@ -115,6 +128,8 @@ async fn main(spawner: Spawner) {
         let pio0 = Pio::new(p.PIO0, Irqs);
         Neopixel::new(pio0, p.PIN_17, AnyChannel::from(p.DMA_CH0), &LED_SIGNAL)
     };
+
+    let dfu = FirmwareRecvr::new(p.FLASH, AnyChannel::from(p.DMA_CH1), dfu_state);
 
     // p.PIN_19 is rotary encoder momentary switch
 
@@ -157,6 +172,7 @@ async fn main(spawner: Spawner) {
     spawner.must_spawn(neopixel_task(neopixel));
     spawner.must_spawn(hello_task(&LED_SIGNAL));
     spawner.must_spawn(keyboard_task(keyboard));
+    spawner.must_spawn(dfu_task(dfu));
 }
 
 async fn shutdown() {
@@ -219,6 +235,12 @@ async fn hello_task(led_signal: &'static Signal<CriticalSectionRawMutex, Color>)
     }
 }
 
+#[embassy_executor::task]
+async fn dfu_task(dfu: FirmwareRecvr<'static, FLASH>) -> ! {
+    dfu.run().await
+}
+
+//TODO: Cleanup Below
 struct MyDeviceHandler {
     configured: AtomicBool,
 }

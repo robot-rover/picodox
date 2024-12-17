@@ -11,9 +11,19 @@ use picodox_proto::{AckType, Command, NackType, Response, WireSize, DATA_COUNT};
 
 use picodox_proto::proto_impl;
 
+use crate::dfu::{FirmwareIntf, FirmwareSession};
+
 const MAX_PACKET_SIZE: usize = 64;
 
 pub struct SerialIf<'d, D>
+where
+    D: Driver<'d>,
+{
+    packet: Packetizer<'d, D>,
+    dfu_intf: FirmwareIntf<'d>,
+}
+
+pub struct Packetizer<'d, D>
 where
     D: Driver<'d>,
 {
@@ -23,28 +33,7 @@ where
     watchdog: Watchdog,
 }
 
-trait DataRecvr<'d, D: Driver<'d>> {
-    async fn callback(&mut self, s: &mut SerialIf<'d, D>, data: &[u8; DATA_COUNT]);
-}
-
-struct EchoRecvr;
-
-impl<'d, D: Driver<'d>> DataRecvr<'d, D> for EchoRecvr {
-    async fn callback(&mut self, s: &mut SerialIf<'d, D>, data: &[u8; DATA_COUNT]) {
-        s.send_packet(&Response::Data(*data)).await
-    }
-}
-
-impl<'d, D: Driver<'d>> SerialIf<'d, D> {
-    pub fn new(builder: &mut Builder<'d, D>, state: &'d mut State<'d>, watchdog: Watchdog) -> Self {
-        SerialIf {
-            class: CdcAcmClass::new(builder, state, MAX_PACKET_SIZE as u16),
-            coms_buf: CircularBuffer::new(),
-            pack_buf: [0u8; MAX_PACKET_SIZE],
-            watchdog,
-        }
-    }
-
+impl<'d, D: Driver<'d>> Packetizer<'d, D> {
     async fn recv_cmd(&mut self) -> Result<Command, NackType> {
         let mut lost_bytes = false;
         let line_end = loop {
@@ -86,7 +75,10 @@ impl<'d, D: Driver<'d>> SerialIf<'d, D> {
         decoded.map_err(|err| NackType::PacketErr(err))
     }
 
-    async fn recv_data<F: DataRecvr<'d, D>>(&mut self, count: u16, mut callback: F) {
+    async fn recv_data<F>(&mut self, count: u32, callback: &mut F)
+    where
+        F: DataRecvr<'d, D>,
+    {
         for _bytes_recieved in (0..count).step_by(DATA_COUNT) {
             let res = self.recv_cmd().await.and_then(|cmd| match cmd {
                 Command::Data(data) => Ok(data),
@@ -98,43 +90,6 @@ impl<'d, D: Driver<'d>> SerialIf<'d, D> {
                     self.send_packet(&Response::Nack(reason)).await;
                     continue;
                 }
-            }
-        }
-    }
-
-    pub async fn run(&mut self) -> ! {
-        loop {
-            let res = self.recv_cmd().await;
-            let message = match res {
-                Ok(cmd) => cmd,
-                Err(reason) => {
-                    // In case of an error here, just respond with an error
-                    self.send_packet(&Response::Nack(reason)).await;
-                    continue;
-                }
-            };
-            match message {
-                Command::Reset => {
-                    self.send_packet(&Response::Ack(AckType::AckReset)).await;
-                    crate::shutdown().await;
-                    self.watchdog.trigger_reset();
-                    loop {}
-                }
-                Command::UsbDfu => {
-                    self.send_packet(&Response::Ack(AckType::AckUsbDfu)).await;
-                    crate::shutdown().await;
-                    rom_data::reset_to_usb_boot(0, 0);
-                    loop {}
-                }
-                Command::EchoMsg { count } => {
-                    self.send_packet(&Response::EchoMsg { count }).await;
-                    self.recv_data(count, EchoRecvr).await;
-                }
-                Command::Data(_data) => {
-                    self.send_packet(&Response::Nack(NackType::Unexpected))
-                        .await;
-                }
-                Command::FlashFw { count } => {}
             }
         }
     }
@@ -157,5 +112,93 @@ impl<'d, D: Driver<'d>> SerialIf<'d, D> {
         }
 
         async_unwrap!(res self.class.write_packet(chunks_exact.remainder()).await, "Error sending buffer: {}");
+    }
+}
+
+pub trait DataRecvr<'d, D: Driver<'d>> {
+    async fn callback(&mut self, p: &mut Packetizer<'d, D>, data: &[u8; DATA_COUNT]);
+}
+
+struct EchoRecvr;
+
+impl<'d, D: Driver<'d>> DataRecvr<'d, D> for EchoRecvr {
+    async fn callback(&mut self, p: &mut Packetizer<'d, D>, data: &[u8; DATA_COUNT]) {
+        p.send_packet(&Response::Data(*data)).await;
+    }
+}
+
+impl<'a, 'd, D: Driver<'d>> DataRecvr<'d, D> for FirmwareSession<'a, 'd> {
+    async fn callback(&mut self, p: &mut Packetizer<'d, D>, data: &[u8; DATA_COUNT]) {
+        self.write(data).await
+    }
+}
+
+impl<'d, D: Driver<'d>> SerialIf<'d, D> {
+    pub fn new(
+        builder: &mut Builder<'d, D>,
+        state: &'d mut State<'d>,
+        watchdog: Watchdog,
+        dfu_intf: FirmwareIntf<'d>,
+    ) -> Self {
+        let packet = Packetizer {
+            class: CdcAcmClass::new(builder, state, MAX_PACKET_SIZE as u16),
+            coms_buf: CircularBuffer::new(),
+            pack_buf: [0u8; MAX_PACKET_SIZE],
+            watchdog,
+        };
+
+        SerialIf { packet, dfu_intf }
+    }
+
+    pub async fn run(&mut self) -> ! {
+        loop {
+            let res = self.packet.recv_cmd().await;
+            let message = match res {
+                Ok(cmd) => cmd,
+                Err(reason) => {
+                    // In case of an error here, just respond with an error
+                    self.packet.send_packet(&Response::Nack(reason)).await;
+                    continue;
+                }
+            };
+            match message {
+                Command::Reset => {
+                    self.packet
+                        .send_packet(&Response::Ack(AckType::AckReset))
+                        .await;
+                    crate::shutdown().await;
+                    self.packet.watchdog.trigger_reset();
+                    loop {}
+                }
+                Command::UsbDfu => {
+                    self.packet
+                        .send_packet(&Response::Ack(AckType::AckUsbDfu))
+                        .await;
+                    crate::shutdown().await;
+                    rom_data::reset_to_usb_boot(0, 0);
+                    loop {}
+                }
+                Command::EchoMsg { count } => {
+                    self.packet.send_packet(&Response::EchoMsg { count }).await;
+                    self.packet.recv_data(count as u32, &mut EchoRecvr).await;
+                }
+                Command::Data(_data) => {
+                    self.packet
+                        .send_packet(&Response::Nack(NackType::Unexpected))
+                        .await;
+                }
+                Command::FlashFw { count, offset } => {
+                    // TODO
+                    //
+                    let mut fw_session = self.dfu_intf.lock(offset).await;
+                    self.packet
+                        .send_packet(&Response::Ack(AckType::AckFlashFw))
+                        .await;
+                    fw_session.begin().await;
+                    self.packet.recv_data(count, &mut fw_session).await;
+                    fw_session.finish().await;
+                }
+            }
+        }
     }
 }

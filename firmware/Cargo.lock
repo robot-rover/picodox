@@ -365,6 +365,7 @@ version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "62d8a1dab79c615b36fc05d9ccaa144a7f6cec1fa6076c8b2eed628cb5f122cb"
 dependencies = [
+ "defmt",
  "digest",
  "embassy-embedded-hal",
  "embassy-sync",
@@ -379,6 +380,7 @@ version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5794414bc20e0d750f145bc0e82366b19dd078e9e075e8331fb8dd069a1cb6a2"
 dependencies = [
+ "defmt",
  "embassy-futures",
  "embassy-sync",
  "embassy-time",
@@ -428,6 +430,7 @@ checksum = "0ef3bac31ec146321248a169e9c7b5799f1e0b3829c7a9b324cb4600a7438f59"
 dependencies = [
  "cortex-m",
  "critical-section",
+ "defmt",
  "num-traits",
 ]
 
@@ -459,6 +462,7 @@ dependencies = [
  "cortex-m",
  "cortex-m-rt",
  "critical-section",
+ "defmt",
  "document-features",
  "embassy-embedded-hal",
  "embassy-futures",
@@ -1023,12 +1027,14 @@ dependencies = [
  "critical-section",
  "defmt",
  "embassy-boot",
+ "embassy-embedded-hal",
  "embassy-executor",
  "embassy-futures",
  "embassy-rp",
  "embassy-sync",
  "embassy-time",
  "embassy-usb",
+ "embedded-storage-async",
  "fixed",
  "heapless 0.7.17",
  "panic-halt",

@@ -109,8 +109,14 @@ fn analyze_uf2(path: &str) -> Result<()> {
 fn flash_fw(dev: &str, path: &str) -> Result<()> {
     let mut port = open_port(dev)?;
     let fw_bytes = fs::read(path)?;
-    let fw_len: u16 = fw_bytes.len().try_into().context("Firmware is too large")?;
-    send_command(&mut port.get_mut(), &Command::FlashFw { count: fw_len })?;
+    let fw_len: u32 = fw_bytes.len().try_into().context("Firmware is too large")?;
+    send_command(
+        &mut port.get_mut(),
+        &Command::FlashFw {
+            count: fw_len,
+            offset: todo!(),
+        },
+    )?;
     for chunk in fw_bytes.chunks(DATA_COUNT as usize) {
         let mut data = [0u8; DATA_COUNT];
         data[..chunk.len()].copy_from_slice(chunk);
@@ -294,7 +300,10 @@ mod tests {
     use super::*;
 
     const COMMAND_CASES: &[Command] = &[
-        Command::FlashFw { count: 10 },
+        Command::FlashFw {
+            count: 10,
+            offset: 0x1000,
+        },
         Command::Data([0, 0, 3, 4, 5, 6, 0, 0]),
         Command::EchoMsg { count: 7 },
     ];
