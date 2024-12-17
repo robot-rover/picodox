@@ -41,7 +41,7 @@ pub const DATA_COUNT: usize = 8;
 pub enum Command {
     Reset,
     UsbDfu,
-    FlashFw { count: u32, offset: u32 },
+    FlashFw { count: u32 },
     EchoMsg { count: u16 },
     Data([u8; DATA_COUNT]),
 }

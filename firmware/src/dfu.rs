@@ -45,12 +45,12 @@ impl<'d> FirmwareIntf<'d> {
         }
     }
 
-    pub async fn lock<'a>(&'a self, initial_offset: u32) -> FirmwareSession<'a, 'd> {
+    pub async fn lock<'a>(&'a self) -> FirmwareSession<'a, 'd> {
         let guard = self.mutex.lock().await;
 
         FirmwareSession {
             guard,
-            offset: initial_offset,
+            offset: 0,
             data: Vec::new(),
         }
     }
@@ -82,13 +82,6 @@ impl<'a, 'd> FirmwareSession<'a, 'd> {
             "Block size not divisible by DATA_COUNT {}");
     }
 
-    pub async fn set_offset(&mut self, offset: u32) {
-        if !self.data.is_empty() {
-            self.write_block().await;
-        }
-        self.offset = offset;
-    }
-
     async fn write_block(&mut self) {
         let mut fixed_size = AlignedBuffer([0u8; FLASH_WRITE_BLOCK]);
         fixed_size.0[..self.data.len()].copy_from_slice(&self.data);
@@ -115,7 +108,6 @@ struct FirmwareBlock {
 }
 
 pub struct FirmwareRecvr<'d, F: flash::Instance> {
-    buffer: AlignedBuffer<8>,
     flash: PeripheralRef<'d, F>,
     dma: PeripheralRef<'d, AnyChannel>,
     cmd_recv: Receiver<'d, MutexType, FirmwareCmd, 4>,
@@ -130,15 +122,12 @@ where
         dma_p: impl Peripheral<P = AnyChannel> + 'd,
         state: &'d FirmwareState,
     ) -> Self {
-        let buffer = AlignedBuffer([0; 8]);
-
         let flash = flash_p.into_ref();
         let dma = dma_p.into_ref();
 
         let cmd_recv = state.channel.receiver();
 
         Self {
-            buffer,
             flash,
             dma,
             cmd_recv,

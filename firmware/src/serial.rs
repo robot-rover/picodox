@@ -187,16 +187,16 @@ impl<'d, D: Driver<'d>> SerialIf<'d, D> {
                         .send_packet(&Response::Nack(NackType::Unexpected))
                         .await;
                 }
-                Command::FlashFw { count, offset } => {
+                Command::FlashFw { count } => {
                     // TODO
                     //
-                    let mut fw_session = self.dfu_intf.lock(offset).await;
-                    self.packet
-                        .send_packet(&Response::Ack(AckType::AckFlashFw))
-                        .await;
+                    let mut fw_session = self.dfu_intf.lock().await;
                     fw_session.begin().await;
                     self.packet.recv_data(count, &mut fw_session).await;
                     fw_session.finish().await;
+                    self.packet
+                        .send_packet(&Response::Ack(AckType::AckFlashFw))
+                        .await;
                 }
             }
         }
