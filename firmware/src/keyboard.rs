@@ -53,7 +53,6 @@ impl<'d, D: Driver<'d>, const R: usize, const C: usize> KeyboardIf<'d, D, R, C> 
     pub async fn run(mut self) {
         let in_fut = async {
             loop {
-                info!("Starting Scan");
                 // Create a report
                 let mut code_vec: Vec<u8, 6> = Vec::new();
                 let mut modifier = 0u8;

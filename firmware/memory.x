@@ -5,7 +5,7 @@ MEMORY
   BOOTLOADER_STATE                  : ORIGIN = 0x10006000, LENGTH = 4K
   FLASH                             : ORIGIN = 0x10007000, LENGTH = 512K
   DFU                               : ORIGIN = 0x10087000, LENGTH = 516K
-  KEYBOARD_META                     : ORIGIN = 0x10088000, LENGTH = 4K
+  KEYBOARD_META                     : ORIGIN = 0x10108000, LENGTH = 4K
 
   /* Pick one of the two options for RAM layout     */
 
