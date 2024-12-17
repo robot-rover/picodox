@@ -62,6 +62,9 @@ static USB_SHUTDOWN: Signal<CriticalSectionRawMutex, ()> = Signal::new();
 async fn main(spawner: Spawner) {
     // TODO: Cleanup below
     let p = embassy_rp::init(Default::default());
+    embassy_rp::pac::WATCHDOG.ctrl().write(|w| w.set_enable(false));
+    let watchdog = Watchdog::new(p.WATCHDOG);
+
 
     // Create the driver, from the HAL.
     let driver = usb::Driver::new(p.USB, Irqs);
@@ -100,22 +103,22 @@ async fn main(spawner: Spawner) {
         builder
     };
 
-    let dfu_state = {
-        static DFU_STATE: StaticCell<FirmwareState> = StaticCell::new();
-        DFU_STATE.init(FirmwareState::new())
-    };
+    //let dfu_state = {
+    //    static DFU_STATE: StaticCell<FirmwareState> = StaticCell::new();
+    //    DFU_STATE.init(FirmwareState::new())
+    //};
 
     // Create classes on the builder.
-    let serial = {
-        static STATE: StaticCell<cdc_acm::State> = StaticCell::new();
-        let state = STATE.init(Default::default());
-        SerialIf::new(
-            &mut builder,
-            state,
-            Watchdog::new(p.WATCHDOG),
-            dfu_state.get_intf(),
-        )
-    };
+    //let serial = {
+    //    static STATE: StaticCell<cdc_acm::State> = StaticCell::new();
+    //    let state = STATE.init(Default::default());
+    //    SerialIf::new(
+    //        &mut builder,
+    //        state,
+    //        Watchdog::new(p.WATCHDOG),
+    //        dfu_state.get_intf(),
+    //    )
+    //};
 
     let (logger, logger_rx) = {
         static STATE: StaticCell<cdc_acm::State> = StaticCell::new();
@@ -129,7 +132,7 @@ async fn main(spawner: Spawner) {
         Neopixel::new(pio0, p.PIN_17, AnyChannel::from(p.DMA_CH0), &LED_SIGNAL)
     };
 
-    let dfu = FirmwareRecvr::new(p.FLASH, AnyChannel::from(p.DMA_CH1), dfu_state);
+    //let dfu = FirmwareRecvr::new(p.FLASH, AnyChannel::from(p.DMA_CH1), dfu_state);
 
     // p.PIN_19 is rotary encoder momentary switch
 
@@ -165,14 +168,14 @@ async fn main(spawner: Spawner) {
     // Build the usb device
     let usb = builder.build();
 
-    spawner.must_spawn(serial_task(serial));
+    //spawner.must_spawn(serial_task(serial));
     spawner.must_spawn(logger_task(logger));
     spawner.must_spawn(logger_rx_task(logger_rx));
     spawner.must_spawn(usb_task(usb));
     spawner.must_spawn(neopixel_task(neopixel));
     spawner.must_spawn(hello_task(&LED_SIGNAL));
     spawner.must_spawn(keyboard_task(keyboard));
-    spawner.must_spawn(dfu_task(dfu));
+    //spawner.must_spawn(dfu_task(dfu));
 }
 
 async fn shutdown() {

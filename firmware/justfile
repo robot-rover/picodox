@@ -7,5 +7,5 @@ flash:
   cargo build
   picotool load -x -t elf target/thumbv6m-none-eabi/debug/picodox-firmware
 
-log:
-  socat -u /dev/ttyACM1,rawer STDOUT | defmt-print -e target/thumbv6m-none-eabi/debug/picodox-firmware
+log DEV="/dev/ttyACM1":
+  socat -u {{ DEV }},rawer STDOUT | defmt-print -e target/thumbv6m-none-eabi/debug/picodox-firmware
