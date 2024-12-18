@@ -170,14 +170,14 @@ async fn main(spawner: Spawner) {
     // Build the usb device
     let usb = builder.build();
 
-    //spawner.must_spawn(serial_task(serial));
+    spawner.must_spawn(serial_task(serial));
     spawner.must_spawn(logger_task(logger));
     spawner.must_spawn(logger_rx_task(logger_rx));
     spawner.must_spawn(usb_task(usb));
     spawner.must_spawn(neopixel_task(neopixel));
     spawner.must_spawn(hello_task(&LED_SIGNAL));
     spawner.must_spawn(keyboard_task(keyboard));
-    //spawner.must_spawn(dfu_task(dfu));
+    spawner.must_spawn(dfu_task(dfu));
 }
 
 async fn shutdown() {

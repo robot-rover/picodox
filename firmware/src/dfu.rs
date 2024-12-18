@@ -1,3 +1,5 @@
+use core::future::pending;
+
 use defmt::{info, warn};
 use embassy_boot::{AlignedBuffer, FirmwareUpdater, FirmwareUpdaterConfig};
 use embassy_rp::{
@@ -138,7 +140,7 @@ where
         let flash = Flash::<_, _, FLASH_SIZE>::new(self.flash, self.dma);
         let flash_mutex = Mutex::new(flash);
         let config = FirmwareUpdaterConfig::from_linkerfile(&flash_mutex, &flash_mutex);
-        let mut aligned = AlignedBuffer([0; 1]);
+        let mut aligned = AlignedBuffer([0; 4]);
         let mut updater = FirmwareUpdater::new(config, &mut aligned.0);
         loop {
             loop {
@@ -157,8 +159,9 @@ where
                     FirmwareCmd::Finish => break,
                     FirmwareCmd::Block(block) => {
                         info!("Writing block at offset {}", block.offset);
-                        async_unwrap!(res writer.write(block.offset, &block.data.0[..]).await,
-                            "Failed to write block to offset {}: {}", block.offset);
+                        // ITS THIS DAMN LINE
+                        //async_unwrap!(res writer.write(block.offset, &block.data.0[..]).await,
+                        //    "Failed to write block to offset {}: {}", block.offset);
                     }
                 }
             }
@@ -166,5 +169,9 @@ where
             async_unwrap!(res updater.mark_updated().await,
                 "Failed to mark firmware as updated: {}");
         }
+
+        //loop {
+        //    pending::<()>().await;
+        //}
     }
 }

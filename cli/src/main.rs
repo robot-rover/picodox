@@ -116,11 +116,6 @@ fn flash_fw(dev: &str, path: &str) -> Result<()> {
         data[..chunk.len()].copy_from_slice(chunk);
         send_command(&mut port.get_mut(), &Command::Data(data))?;
     }
-    let resp: Response = recv_response(&mut port)?;
-    match resp {
-        Response::Ack(AckType::AckFlashFw) => println!("Firmware Update acknowledged"),
-        other => bail!("Unexpected response: {:?}, expecting AckFlashFw", other),
-    };
 
     Ok(())
 }
@@ -128,11 +123,6 @@ fn flash_fw(dev: &str, path: &str) -> Result<()> {
 fn reset(dev: &str) -> Result<()> {
     let mut port = open_port(dev)?;
     send_command(&mut port.get_mut(), &Command::Reset)?;
-    let resp: Response = recv_response(&mut port)?;
-    match resp {
-        Response::Ack(AckType::AckReset) => println!("Reset acknowledged"),
-        other => bail!("Unexpected response: {:?}, expecting AckReset", other),
-    };
 
     Ok(())
 }
@@ -147,11 +137,6 @@ fn is_picoboot_connected() -> bool {
 fn usb_dfu(dev: &str) -> Result<()> {
     let mut port = open_port(dev)?;
     send_command(&mut port.get_mut(), &Command::UsbDfu)?;
-    let resp: Response = recv_response(&mut port)?;
-    match resp {
-        Response::Ack(AckType::AckUsbDfu) => println!("Reset acknowledged"),
-        other => bail!("Unexpected response: {:?}, expecting AckUsbDfu", other),
-    };
 
     let now = Instant::now();
     while (Instant::now() - now) < Duration::from_secs(5) {

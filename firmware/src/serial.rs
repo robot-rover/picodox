@@ -1,3 +1,5 @@
+use core::future::pending;
+
 use circular_buffer::CircularBuffer;
 use defmt::{error, info};
 use embassy_rp::{rom_data, watchdog::Watchdog};
@@ -171,17 +173,11 @@ impl<'d, D: Driver<'d>> SerialIf<'d, D> {
             };
             match message {
                 Command::Reset => {
-                    self.packet
-                        .send_packet(&Response::Ack(AckType::AckReset))
-                        .await;
                     crate::shutdown().await;
                     self.packet.watchdog.trigger_reset();
                     loop {}
                 }
                 Command::UsbDfu => {
-                    self.packet
-                        .send_packet(&Response::Ack(AckType::AckUsbDfu))
-                        .await;
                     crate::shutdown().await;
                     rom_data::reset_to_usb_boot(0, 0);
                     loop {}
@@ -198,14 +194,16 @@ impl<'d, D: Driver<'d>> SerialIf<'d, D> {
                 Command::FlashFw { count } => {
                     // TODO
                     //
-                    let mut fw_session = self.dfu_intf.lock().await;
-                    fw_session.begin().await;
-                    self.packet.recv_data(count, &mut fw_session).await;
-                    fw_session.finish().await;
-                    self.packet
-                        .send_packet(&Response::Ack(AckType::AckFlashFw))
-                        .await;
+                    //info!("FlashFw count: {}", count);
+                    //let mut fw_session = self.dfu_intf.lock().await;
+                    //fw_session.begin().await;
+            //        self.packet.recv_data(count, &mut fw_session).await;
+            //        fw_session.finish().await;
+            //        self.packet
+            //            .send_packet(&Response::Ack(AckType::AckFlashFw))
+            //            .await;
                 }
+                _ => {},
             }
         }
     }

@@ -1,11 +1,12 @@
 compile:
-  cargo build
-  elf2uf2-rs target/thumbv6m-none-eabi/debug/picodox-firmware target/thumbv6m-none-eabi/debug/picodox-firmware.uf2
+  cargo build --release
+  elf2uf2-rs target/thumbv6m-none-eabi/debug/picodox-firmware target/thumbv6m-none-eabi/release/picodox-firmware.uf2
 
 flash:
   -cd ../cli && cargo run dfu
-  cargo build
-  picotool load -x -t elf target/thumbv6m-none-eabi/debug/picodox-firmware
+  cargo build --release
+  picotool load -t elf target/thumbv6m-none-eabi/release/picodox-firmware
+  picotool reboot
 
-log DEV="/dev/ttyACM1" BUILD="debug":
-  socat -u {{ DEV }},rawer STDOUT | defmt-print -e target/thumbv6m-none-eabi/{{ BUILD }}/picodox-firmware
+log DEV="/dev/ttyACM1":
+  socat -u {{ DEV }},rawer STDOUT | defmt-print -e target/thumbv6m-none-eabi/release/picodox-firmware
