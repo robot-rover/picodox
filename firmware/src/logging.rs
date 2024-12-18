@@ -85,7 +85,7 @@ fn do_write(bytes: &[u8]) {
         buf.len()
     });
 
-    if fullness > MAX_PACKET_SIZE {
+    if fullness > 0 {
         flush()
     }
 }

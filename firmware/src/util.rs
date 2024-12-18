@@ -6,7 +6,7 @@ macro_rules! async_unwrap {
     (op $option:expr, $($error_args:expr),*) => {{
         match $option {
             Some(value) => value,
-            None => async_panic!($($error_args)*,),
+            None => async_panic!($($error_args),*),
         }
     }};
     (res $result:expr, $($error_args:expr),*) => {{

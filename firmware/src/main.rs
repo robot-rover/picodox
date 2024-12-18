@@ -21,9 +21,10 @@ mod logging;
 mod neopixel;
 mod serial;
 
+use core::future::pending;
 use core::sync::atomic::Ordering;
 
-use defmt::info;
+use defmt::{error, info, println};
 use dfu::{FirmwareRecvr, FirmwareState};
 use embassy_futures::select::select;
 use embassy_rp::dma::AnyChannel;
@@ -219,11 +220,11 @@ async fn keyboard_task(keyboard: KeyboardIf<'static, Driver<'static, USB>, NUM_R
 
 #[embassy_executor::task]
 async fn hello_task(led_signal: &'static Signal<CriticalSectionRawMutex, Color>) -> ! {
-    let mut i = 0;
+    let mut i = 0usize;
     let mut b = false;
     loop {
         if i % 10 == 0 {
-            defmt::println!("Hello World #{} :-)", i / 10);
+            println!("Hello World #{} :-)", i / 10);
             defmt::flush();
             b = !b;
         }
@@ -234,8 +235,9 @@ async fn hello_task(led_signal: &'static Signal<CriticalSectionRawMutex, Color>)
             Color::new(0, 0, 0)
         });
         Timer::after_millis(100).await;
-        i += 1;
+        i = i.wrapping_add(1);
     }
+
 }
 
 #[embassy_executor::task]
