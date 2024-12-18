@@ -40,6 +40,10 @@ usbd-hid = "0.8.2"
 embedded-storage-async = "0.4.1"
 embassy-embedded-hal = { version = "0.2.0", features = ["defmt"] }
 
+[profile.release]
+debug = true
+opt-level = 's'
+
 [[bin]]
 name = "picodox-firmware"
 path = "src/main.rs"

@@ -1,6 +1,7 @@
 use circular_buffer::CircularBuffer;
-use defmt::error;
+use defmt::{error, info};
 use embassy_rp::{rom_data, watchdog::Watchdog};
+use embassy_time::Timer;
 use embassy_usb::{
     class::cdc_acm::{CdcAcmClass, State},
     driver::Driver,
@@ -151,8 +152,15 @@ impl<'d, D: Driver<'d>> SerialIf<'d, D> {
     }
 
     pub async fn run(&mut self) -> ! {
+        Timer::after_secs(5).await;
+        info!("Serial starting");
+        Timer::after_secs(2).await;
         loop {
+            info!("Waiting for packet");
+            Timer::after_secs(2).await;
             let res = self.packet.recv_cmd().await;
+            info!("Received command (err: {})", res.is_err());
+            Timer::after_secs(2).await;
             let message = match res {
                 Ok(cmd) => cmd,
                 Err(reason) => {

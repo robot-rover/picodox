@@ -63,6 +63,7 @@ static USB_SHUTDOWN: Signal<CriticalSectionRawMutex, ()> = Signal::new();
 async fn main(spawner: Spawner) {
     // TODO: Cleanup below
     let p = embassy_rp::init(Default::default());
+    // Disable the watchdog from the bootloader
     embassy_rp::pac::WATCHDOG.ctrl().write(|w| w.set_enable(false));
     let watchdog = Watchdog::new(p.WATCHDOG);
 
@@ -104,22 +105,22 @@ async fn main(spawner: Spawner) {
         builder
     };
 
-    //let dfu_state = {
-    //    static DFU_STATE: StaticCell<FirmwareState> = StaticCell::new();
-    //    DFU_STATE.init(FirmwareState::new())
-    //};
+    let dfu_state = {
+        static DFU_STATE: StaticCell<FirmwareState> = StaticCell::new();
+        DFU_STATE.init(FirmwareState::new())
+    };
 
     // Create classes on the builder.
-    //let serial = {
-    //    static STATE: StaticCell<cdc_acm::State> = StaticCell::new();
-    //    let state = STATE.init(Default::default());
-    //    SerialIf::new(
-    //        &mut builder,
-    //        state,
-    //        Watchdog::new(p.WATCHDOG),
-    //        dfu_state.get_intf(),
-    //    )
-    //};
+    let serial = {
+        static STATE: StaticCell<cdc_acm::State> = StaticCell::new();
+        let state = STATE.init(Default::default());
+        SerialIf::new(
+            &mut builder,
+            state,
+            watchdog,
+            dfu_state.get_intf(),
+        )
+    };
 
     let (logger, logger_rx) = {
         static STATE: StaticCell<cdc_acm::State> = StaticCell::new();
@@ -133,7 +134,7 @@ async fn main(spawner: Spawner) {
         Neopixel::new(pio0, p.PIN_17, AnyChannel::from(p.DMA_CH0), &LED_SIGNAL)
     };
 
-    //let dfu = FirmwareRecvr::new(p.FLASH, AnyChannel::from(p.DMA_CH1), dfu_state);
+    let dfu = FirmwareRecvr::new(p.FLASH, AnyChannel::from(p.DMA_CH1), dfu_state);
 
     // p.PIN_19 is rotary encoder momentary switch
 

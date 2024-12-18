@@ -16,7 +16,7 @@ use portable_atomic::AtomicBool;
 const MAX_PACKET_SIZE: usize = 64;
 
 struct LoggerComs {
-    buf: Mutex<CriticalSectionRawMutex, RefCell<CircularBuffer<{ 2 * MAX_PACKET_SIZE }, u8>>>,
+    buf: Mutex<CriticalSectionRawMutex, RefCell<CircularBuffer<{ 10 * MAX_PACKET_SIZE }, u8>>>,
     sig: Signal<CriticalSectionRawMutex, ()>,
 }
 
@@ -109,25 +109,21 @@ impl<'d, D: Driver<'d>> LoggerIf<'d, D> {
         loop {
             GLOBAL_COMS.sig.wait().await;
 
-            let (is_all, send_len) = GLOBAL_COMS.buf.lock(|buf_cell| {
+            let (is_all, send_len, is_empty) = GLOBAL_COMS.buf.lock(|buf_cell| {
                 let mut buf = buf_cell.borrow_mut();
                 let take_count = buf.len().min(MAX_PACKET_SIZE);
                 let is_all = take_count == buf.len();
                 for (idx, byte) in buf.drain(..take_count).enumerate() {
                     self.send_buf[idx] = byte;
                 }
-                (is_all, take_count)
+                (is_all, take_count, buf.is_empty())
             });
 
             // Since this is the error reporting mechanism, just fail silently
             let _ = self.sender.write_packet(&self.send_buf[..send_len]).await;
 
             // Add the ZLP to flush buffer if no more data is waiting
-            if is_all
-                && send_len == MAX_PACKET_SIZE
-                && GLOBAL_COMS
-                    .buf
-                    .lock(|buf_cell| buf_cell.borrow().is_empty())
+            if is_all && send_len == MAX_PACKET_SIZE && is_empty
             {
                 // Since this is the error reporting mechanism, just fail silently
                 let _ = self.sender.write_packet(&[]).await;
