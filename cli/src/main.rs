@@ -1,10 +1,5 @@
 use std::{
-    cmp,
-    fmt::Debug,
-    fs,
-    io::{BufRead, BufReader, Write},
-    thread,
-    time::{Duration, Instant},
+    cmp, fmt::Debug, fs, io::{BufRead, BufReader, Write}, path::Path, thread, time::{Duration, Instant}
 };
 
 mod uf2;
@@ -56,7 +51,14 @@ enum SubCommand {
     Uf2 {
         #[arg(help = "The file to analyze")]
         path: String,
+        #[arg(short, long)]
+        verbose: bool,
     },
+    #[command(about = "Create uf2 files to program the handedness of the keyboard")]
+    Hand {
+        #[arg(help = "The location to put the generated uf2 files")]
+        path: String,
+    }
 }
 
 fn main() {
@@ -68,7 +70,8 @@ fn main() {
         SubCommand::ListSerial => list_serial(),
         SubCommand::Echo { msg } => send_echo(&args.device, &msg),
         SubCommand::Flash { path } => flash_fw(&args.device, &path),
-        SubCommand::Uf2 { path } => analyze_uf2(&path),
+        SubCommand::Uf2 { path, verbose } => analyze_uf2(&path, verbose),
+        SubCommand::Hand { path } => hand_uf2s(&path),
     };
 
     if let Err(err) = res {
@@ -77,7 +80,7 @@ fn main() {
     }
 }
 
-fn analyze_uf2(path: &str) -> Result<()> {
+fn analyze_uf2(path: &str, verbose: bool) -> Result<()> {
     let file_contents =
         fs::read(path).with_context(|| format!("Unable to open file '{}'", path))?;
 
@@ -87,6 +90,10 @@ fn analyze_uf2(path: &str) -> Result<()> {
         Some(block) => block.get_bounds(),
         None => bail!("No blocks in file!"),
     };
+
+    if verbose {
+        println!("{:?}", blocks.first().unwrap());
+    }
 
     for block in blocks[1..]
         .iter()
@@ -102,6 +109,37 @@ fn analyze_uf2(path: &str) -> Result<()> {
     }
 
     println!("0x{:x} ({} bytes)", bounds.0, bounds.1 - bounds.0);
+
+    Ok(())
+}
+
+fn hand_uf2s(path: &str) -> Result<()> {
+    const HANDED_OFFSET: u32 = 0x108000;
+    const RP2040_FAMILY_ID: u32 = 0xe48bff56;
+
+    let out_dir = Path::new(path);
+
+    let left_block = Uf2Block::new(
+        Uf2Flags::FamilyIdPres,
+        HANDED_OFFSET,
+        &[1u8],
+        1,
+        1,
+        RP2040_FAMILY_ID,
+    );
+    let left_path = out_dir.join("left.uf2");
+    fs::write(&left_path, left_block.to_bytes())?;
+
+    let right_block = Uf2Block::new(
+        Uf2Flags::FamilyIdPres,
+        HANDED_OFFSET,
+        &[2u8],
+        1,
+        1,
+        RP2040_FAMILY_ID,
+    );
+    let right_path = out_dir.join("right.uf2");
+    fs::write(&right_path, right_block.to_bytes())?;
 
     Ok(())
 }

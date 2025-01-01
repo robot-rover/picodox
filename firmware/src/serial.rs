@@ -14,7 +14,7 @@ use picodox_proto::{AckType, Command, NackType, Response, WireSize, DATA_COUNT};
 
 use picodox_proto::proto_impl;
 
-use crate::dfu::{FirmwareIntf, FirmwareSession};
+//use crate::dfu::{FirmwareIntf, FirmwareSession};
 
 const MAX_PACKET_SIZE: usize = 64;
 
@@ -23,7 +23,7 @@ where
     D: Driver<'d>,
 {
     packet: Packetizer<'d, D>,
-    dfu_intf: FirmwareIntf<'d>,
+    //dfu_intf: FirmwareIntf<'d>,
 }
 
 pub struct Packetizer<'d, D>
@@ -130,18 +130,18 @@ impl<'d, D: Driver<'d>> DataRecvr<'d, D> for EchoRecvr {
     }
 }
 
-impl<'a, 'd, D: Driver<'d>> DataRecvr<'d, D> for FirmwareSession<'a, 'd> {
-    async fn callback(&mut self, p: &mut Packetizer<'d, D>, data: &[u8; DATA_COUNT]) {
-        self.write(data).await
-    }
-}
+//impl<'a, 'd, D: Driver<'d>> DataRecvr<'d, D> for FirmwareSession<'a, 'd> {
+//    async fn callback(&mut self, p: &mut Packetizer<'d, D>, data: &[u8; DATA_COUNT]) {
+//        self.write(data).await
+//    }
+//}
 
 impl<'d, D: Driver<'d>> SerialIf<'d, D> {
     pub fn new(
         builder: &mut Builder<'d, D>,
         state: &'d mut State<'d>,
         watchdog: Watchdog,
-        dfu_intf: FirmwareIntf<'d>,
+        //dfu_intf: FirmwareIntf<'d>,
     ) -> Self {
         let packet = Packetizer {
             class: CdcAcmClass::new(builder, state, MAX_PACKET_SIZE as u16),
@@ -150,7 +150,7 @@ impl<'d, D: Driver<'d>> SerialIf<'d, D> {
             watchdog,
         };
 
-        SerialIf { packet, dfu_intf }
+        SerialIf { packet /*, dfu_intf*/ }
     }
 
     pub async fn run(&mut self) -> ! {

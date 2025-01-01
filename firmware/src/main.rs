@@ -21,11 +21,9 @@ mod logging;
 mod neopixel;
 mod serial;
 
-use core::future::pending;
 use core::sync::atomic::Ordering;
 
 use defmt::{error, info, println};
-use dfu::{FirmwareRecvr, FirmwareState};
 use embassy_futures::select::select;
 use embassy_rp::dma::AnyChannel;
 use embassy_rp::gpio::Pin;
@@ -58,6 +56,16 @@ bind_interrupts!(struct Irqs {
 
 static INITIATE_SHUTDOWN: Watch<CriticalSectionRawMutex, (), 1> = Watch::new();
 static USB_SHUTDOWN: Signal<CriticalSectionRawMutex, ()> = Signal::new();
+
+enum Hand {
+    Left,
+    Right,
+}
+
+#[cfg(not(feature = "right"))]
+const THIS_HAND: Hand = Hand::Left;
+#[cfg(feature = "right")]
+const THIS_HAND: Hand = Hand::Right;
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
@@ -105,10 +113,10 @@ async fn main(spawner: Spawner) {
         builder
     };
 
-    let dfu_state = {
-        static DFU_STATE: StaticCell<FirmwareState> = StaticCell::new();
-        DFU_STATE.init(FirmwareState::new())
-    };
+    //let dfu_state = {
+    //    static DFU_STATE: StaticCell<FirmwareState> = StaticCell::new();
+    //    DFU_STATE.init(FirmwareState::new())
+    //};
 
     // Create classes on the builder.
     let serial = {
@@ -118,7 +126,7 @@ async fn main(spawner: Spawner) {
             &mut builder,
             state,
             watchdog,
-            dfu_state.get_intf(),
+            //dfu_state.get_intf(),
         )
     };
 
@@ -134,7 +142,7 @@ async fn main(spawner: Spawner) {
         Neopixel::new(pio0, p.PIN_17, AnyChannel::from(p.DMA_CH0), &LED_SIGNAL)
     };
 
-    let dfu = FirmwareRecvr::new(p.FLASH, AnyChannel::from(p.DMA_CH1), dfu_state);
+    //let dfu = FirmwareRecvr::new(p.FLASH, AnyChannel::from(p.DMA_CH1), dfu_state);
 
     // p.PIN_19 is rotary encoder momentary switch
 
@@ -177,7 +185,7 @@ async fn main(spawner: Spawner) {
     spawner.must_spawn(neopixel_task(neopixel));
     spawner.must_spawn(hello_task(&LED_SIGNAL));
     spawner.must_spawn(keyboard_task(keyboard));
-    spawner.must_spawn(dfu_task(dfu));
+    //spawner.must_spawn(dfu_task(dfu));
 }
 
 async fn shutdown() {
@@ -226,6 +234,19 @@ async fn hello_task(led_signal: &'static Signal<CriticalSectionRawMutex, Color>)
     loop {
         if i % 10 == 0 {
             println!("Hello World #{} :-)", i / 10);
+            //println!("Handed loc: {}", unsafe { __keyboard_meta_start } );
+
+            extern "C" {
+                static __keyboard_meta_start: u32;
+                static __keyboard_meta_end: u32;
+            }
+
+            unsafe {
+                let start = &__keyboard_meta_start as *const u32 as u32;
+                let end = &__keyboard_meta_end as *const u32 as u32;
+                const XIP_BASE: u32 = 0x10000000;
+                println!("Handed: 0x{:x} = {}", start, *((start | XIP_BASE) as *const u8));
+            }
             defmt::flush();
             b = !b;
         }
@@ -241,10 +262,10 @@ async fn hello_task(led_signal: &'static Signal<CriticalSectionRawMutex, Color>)
 
 }
 
-#[embassy_executor::task]
-async fn dfu_task(dfu: FirmwareRecvr<'static, FLASH>) -> ! {
-    dfu.run().await
-}
+//#[embassy_executor::task]
+//async fn dfu_task(dfu: FirmwareRecvr<'static, FLASH>) -> ! {
+//    dfu.run().await
+//}
 
 //TODO: Cleanup Below
 struct MyDeviceHandler {

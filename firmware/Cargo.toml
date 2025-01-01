@@ -44,6 +44,9 @@ embassy-embedded-hal = { version = "0.2.0", features = ["defmt"] }
 debug = true
 opt-level = 's'
 
+[features]
+right = []
+
 [[bin]]
 name = "picodox-firmware"
 path = "src/main.rs"
