@@ -1,5 +1,6 @@
 #![no_std]
 
+use defmt::error;
 use errors::ProtoError;
 use heapless::Vec;
 use postcard::experimental::max_size::MaxSize;
@@ -68,9 +69,29 @@ pub enum Response {
     Data([u8; DATA_COUNT]),
 }
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize, MaxSize)]
+pub struct MatrixLoc(u8);
+
+impl MatrixLoc {
+    pub fn new(row: usize, col: usize) -> Self {
+        if row > 0xF || col > 0xF {
+            error!("MatrixLoc out of bounds (row: {}, col: {})", row, col);
+        }
+        MatrixLoc(((col << 4) | row) as u8)
+    }
+
+    pub fn row(&self) -> usize {
+        (self.0 & 0xF) as usize
+    }
+
+    pub fn col(&self) -> usize {
+        ((self.0 & 0xF0) >> 4) as usize
+    }
+}
+
 pub const MAX_KEYS: usize = 35;
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, MaxSize)]
-pub struct KeyUpdate(pub Vec<u8, MAX_KEYS>);
+pub struct KeyUpdate(pub Vec<MatrixLoc, MAX_KEYS>);
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, MaxSize)]
 pub enum KeyResponse {
@@ -79,14 +100,14 @@ pub enum KeyResponse {
 }
 
 impl KeyUpdate {
-    pub fn keys<const N: usize>(key_codes: [u8; N]) -> Self {
+    pub fn keys<const N: usize>(key_codes: [MatrixLoc; N]) -> Self {
         let mut vec = Vec::new();
         vec.extend_from_slice(&key_codes)
             .expect("key_codes is too long");
         KeyUpdate(vec)
     }
 
-    pub fn from_vec(vec: Vec<u8, MAX_KEYS>) -> Self {
+    pub fn from_vec(vec: Vec<MatrixLoc, MAX_KEYS>) -> Self {
         KeyUpdate(vec)
     }
 

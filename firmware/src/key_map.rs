@@ -75,8 +75,7 @@ impl Keymap for BasicKeymap {
         let mut modifier = 0u8;
 
         for &lc in &left.0 {
-            let lc = lc as usize;
-            let code = LEFT_KEY_MATRIX[lc / NUM_COLS][lc % NUM_COLS];
+            let code = LEFT_KEY_MATRIX[lc.row()][lc.col()];
             match code {
                 Key::Mod(KeyMod(m)) => modifier |= m,
                 Key::Code(KeyCode(c)) => {
@@ -86,8 +85,7 @@ impl Keymap for BasicKeymap {
         }
 
         for &rc in &right.0 {
-            let rc = rc as usize;
-            let code = RIGHT_KEY_MATRIX[rc / NUM_COLS][rc % NUM_COLS];
+            let code = RIGHT_KEY_MATRIX[rc.row()][rc.col()];
             match code {
                 Key::Mod(KeyMod(m)) => modifier |= m,
                 Key::Code(KeyCode(c)) => {

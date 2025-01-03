@@ -3,7 +3,7 @@ use embassy_rp::gpio::{AnyPin, Input, Level, Output, Pull};
 use embassy_sync::signal::Signal;
 use embassy_time::Timer;
 use heapless::Vec;
-use picodox_proto::KeyUpdate;
+use picodox_proto::{KeyUpdate, MatrixLoc};
 
 use crate::util::MutexType;
 
@@ -43,7 +43,7 @@ impl<'d, const R: usize, const C: usize> KeyMatrix<'d, R, C> {
                 for (row, row_pin) in self.row_pins.iter_mut().enumerate() {
                     if row_pin.is_high() {
                         // TODO: Ignore NKRO for now
-                        let _ = code_vec.push((col * R + row) as u8);
+                        let _ = code_vec.push(MatrixLoc::new(row, col));
                     }
                 }
                 col_pin.set_low();
