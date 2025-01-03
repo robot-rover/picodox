@@ -69,23 +69,29 @@ pub enum Response {
 }
 
 pub const MAX_KEYS: usize = 35;
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, MaxSize)]
+pub struct KeyUpdate(pub Vec<u8, MAX_KEYS>);
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, MaxSize)]
 pub enum KeyResponse {
     Response(Response),
-    KeyUpdate(Vec<u8, MAX_KEYS>),
+    KeyUpdate(KeyUpdate),
 }
 
-impl KeyResponse {
+impl KeyUpdate {
     pub fn keys<const N: usize>(key_codes: [u8; N]) -> Self {
         let mut vec = Vec::new();
         vec.extend_from_slice(&key_codes)
             .expect("key_codes is too long");
-        KeyResponse::KeyUpdate(vec)
+        KeyUpdate(vec)
+    }
+
+    pub fn from_vec(vec: Vec<u8, MAX_KEYS>) -> Self {
+        KeyUpdate(vec)
     }
 
     pub const fn no_keys() -> Self {
-        KeyResponse::KeyUpdate(Vec::new())
+        KeyUpdate(Vec::new())
     }
 }
 
@@ -113,7 +119,7 @@ mod tests {
         let mut short_vec = Vec::new();
         short_vec.push(1u8).unwrap();
         let short_bytes =
-            to_stdvec(&KeyResponse::KeyUpdate(short_vec)).expect("Cannot serialize short vec");
+            to_stdvec(&KeyResponse::KeyUpdate(KeyUpdate(short_vec))).expect("Cannot serialize short vec");
 
         let long_arr = TestArrStruct([0u8; 10]);
         let long_bytes = to_stdvec(&long_arr).expect("Cannot serialize long vec");

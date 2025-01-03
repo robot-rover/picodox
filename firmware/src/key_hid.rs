@@ -1,6 +1,7 @@
 use defmt::{info, warn};
 use embassy_futures::join::join;
 use embassy_rp::gpio::{AnyPin, Input, Level, Output, Pull};
+use embassy_sync::signal::Signal;
 use embassy_time::Timer;
 use embassy_usb::{
     class::hid::{Config, HidReader, HidReaderWriter, HidWriter, ReportId, RequestHandler, State},
@@ -9,26 +10,35 @@ use embassy_usb::{
     Builder,
 };
 use heapless::Vec;
+use picodox_proto::KeyUpdate;
 use usbd_hid::descriptor::{KeyboardReport, SerializedDescriptor as _};
 
 use crate::{
     key_codes::{Key, KeyCode, KeyMod},
-    key_matrix,
+    key_matrix, util::MutexType,
 };
 
-pub struct KeyboardIf<'d, D: Driver<'d>, const R: usize, const C: usize> {
-    reader: HidReader<'d, D, 1>,
-    writer: HidWriter<'d, D, 8>,
-    col_pins: [Output<'d>; C],
-    row_pins: [Input<'d>; R],
+pub trait Keymap {
+    fn get_report(&mut self, left: &KeyUpdate, right: &KeyUpdate) -> KeyboardReport;
 }
 
-impl<'d, D: Driver<'d>, const R: usize, const C: usize> KeyboardIf<'d, D, R, C> {
+pub struct KeyboardIf<'d, D: Driver<'d>, K: Keymap> {
+    reader: HidReader<'d, D, 1>,
+    writer: HidWriter<'d, D, 8>,
+    left_signal: &'d Signal<MutexType, KeyUpdate>,
+    right_signal: &'d Signal<MutexType, KeyUpdate>,
+    update_freq_ms: u32,
+    keymap: K,
+}
+
+impl<'d, D: Driver<'d>, K: Keymap> KeyboardIf<'d, D, K> {
     pub fn new(
         builder: &mut Builder<'d, D>,
         state: &'d mut State<'d>,
-        col_pins: [AnyPin; C],
-        row_pins: [AnyPin; R],
+        left_signal: &'d Signal<MutexType, KeyUpdate>,
+        right_signal: &'d Signal<MutexType, KeyUpdate>,
+        update_freq_ms: u32,
+        keymap: K,
     ) -> Self {
         let config = Config {
             report_descriptor: KeyboardReport::desc(),
@@ -39,54 +49,40 @@ impl<'d, D: Driver<'d>, const R: usize, const C: usize> KeyboardIf<'d, D, R, C> 
         let hid = HidReaderWriter::<_, 1, 8>::new(builder, state, config);
         let (reader, writer) = hid.split();
 
-        let col_pins = col_pins.map(|pin| Output::new(pin, Level::Low));
-        let row_pins = row_pins.map(|pin| Input::new(pin, Pull::Down));
-
         KeyboardIf {
             reader,
             writer,
-            col_pins,
-            row_pins,
+            left_signal,
+            right_signal,
+            update_freq_ms,
+            keymap,
         }
     }
 
     pub async fn run(mut self) {
         let in_fut = async {
+            let mut left = KeyUpdate::no_keys();
+            let mut right = KeyUpdate::no_keys();
+
             loop {
-                // Create a report
-                let mut code_vec: Vec<u8, 6> = Vec::new();
-                let mut modifier = 0u8;
-                for (col, col_pin) in self.col_pins.iter_mut().enumerate() {
-                    col_pin.set_high();
-                    for (row, row_pin) in self.row_pins.iter_mut().enumerate() {
-                        if row_pin.is_high() {
-                            match key_matrix::LEFT_KEY_MATRIX[col][row] {
-                                Key::Mod(KeyMod(byte)) => modifier |= byte,
-                                Key::Code(KeyCode(byte)) => {
-                                    // Ignore ROVR Overflow for now
-                                    let _ = code_vec.push(byte);
-                                }
-                            }
-                        }
-                    }
-                    col_pin.set_low();
+                if let Some(new_left) = self.left_signal.try_take() {
+                    info!("Left Update: {}", new_left.0.len());
+                    left = new_left;
                 }
 
-                let mut keycodes = [0u8; 6];
-                keycodes[..code_vec.len()].copy_from_slice(&code_vec);
+                if let Some(new_right) = self.right_signal.try_take() {
+                    info!("Right Update: {}", new_right.0.len());
+                    right = new_right;
+                }
 
-                let report = KeyboardReport {
-                    keycodes,
-                    leds: 0,
-                    modifier,
-                    reserved: 0,
-                };
+                let report = self.keymap.get_report(&left, &right);
+
                 match self.writer.write_serialize(&report).await {
                     Ok(()) => {}
                     Err(e) => warn!("Failed to send report: {:?}", e),
                 };
 
-                Timer::after_millis(30).await;
+                Timer::after_millis(self.update_freq_ms.into()).await;
             }
         };
 

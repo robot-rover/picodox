@@ -2,9 +2,13 @@ compile:
   cargo build --release
   elf2uf2-rs target/thumbv6m-none-eabi/debug/picodox-firmware target/thumbv6m-none-eabi/release/picodox-firmware.uf2
 
+HAND := "left"
+
+HAND_FEAT := if HAND == "left" { "" } else if HAND == "right" { "--features=right" } else { error("HAND must be left or right") }
+
 flash:
   -cd ../cli && cargo run dfu
-  cargo build --release
+  cargo build --release {{ HAND_FEAT }}
   picotool load -t elf target/thumbv6m-none-eabi/release/picodox-firmware
   picotool reboot
 

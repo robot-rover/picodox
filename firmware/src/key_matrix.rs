@@ -1,49 +1,60 @@
-use crate::key_codes::*;
+use defmt::warn;
+use embassy_rp::gpio::{AnyPin, Input, Level, Output, Pull};
+use embassy_sync::signal::Signal;
+use embassy_time::Timer;
+use heapless::Vec;
+use picodox_proto::KeyUpdate;
 
-pub const NUM_ROWS: usize = 5;
-pub const NUM_COLS: usize = 7;
+use crate::util::MutexType;
 
-const LEFT_KEY_MATRIX_T: [[Key; NUM_COLS]; NUM_ROWS] = [
-    // K1-K7
-    [KEY_NONE, KEY_5, KEY_4, KEY_3, KEY_2, KEY_1, KEY_GRAVE],
-    // K8-K14
-    [KEY_LEFTBRACE, KEY_T, KEY_R, KEY_E, KEY_W, KEY_Q, KEY_TAB],
-    // K15-K21
-    [KEY_PAGEUP, KEY_G, KEY_F, KEY_D, KEY_S, KEY_A, KEY_ESC],
-    // K22-K28
-    [
-        KEY_PAGEDOWN,
-        KEY_B,
-        KEY_V,
-        KEY_C,
-        KEY_X,
-        KEY_Z,
-        KEY_MOD_LSHIFT,
-    ],
-    // K29-K35
-    [
-        KEY_DELETE,
-        KEY_BACKSPACE,
-        KEY_MOD_LCTRL,
-        KEY_MOD_LALT,
-        KEY_KPMINUS,
-        KEY_KPPLUS,
-        KEY_1,
-    ],
-];
+pub struct KeyMatrix<'d, const R: usize, const C: usize> {
+    col_pins: [Output<'d>; C],
+    row_pins: [Input<'d>; R],
+    signal: &'d Signal<MutexType, KeyUpdate>,
+    update_freq_ms: u32,
+}
 
-pub const LEFT_KEY_MATRIX: [[Key; NUM_ROWS]; NUM_COLS] = const {
-    let mut transpose: [[Key; NUM_ROWS]; NUM_COLS] = [[KEY_NONE; NUM_ROWS]; NUM_COLS];
+impl<'d, const R: usize, const C: usize> KeyMatrix<'d, R, C> {
+    pub fn new(
+        col_pins: [AnyPin; C],
+        row_pins: [AnyPin; R],
+        signal: &'d Signal<MutexType, KeyUpdate>,
+        update_freq_ms: u32,
+    ) -> Self {
+        let col_pins = col_pins.map(|pin| Output::new(pin, Level::Low));
+        let row_pins = row_pins.map(|pin| Input::new(pin, Pull::Down));
 
-    let mut row = 0;
-    while row < NUM_ROWS {
-        let mut col = 0;
-        while col < NUM_COLS {
-            transpose[col][row] = LEFT_KEY_MATRIX_T[row][col];
-            col += 1;
+        KeyMatrix {
+            col_pins,
+            row_pins,
+            signal,
+            update_freq_ms,
         }
-        row += 1;
     }
 
-    transpose
-};
+    pub async fn run(mut self) -> ! {
+        loop {
+            // Create a report
+            let mut code_vec = Vec::new();
+
+            for (col, col_pin) in self.col_pins.iter_mut().enumerate() {
+                col_pin.set_high();
+                Timer::after_micros(20).await;
+                for (row, row_pin) in self.row_pins.iter_mut().enumerate() {
+                    if row_pin.is_high() {
+                        // TODO: Ignore NKRO for now
+                        let _ = code_vec.push((col * R + row) as u8);
+                    }
+                }
+                col_pin.set_low();
+            }
+
+            let update = KeyUpdate::from_vec(code_vec);
+            self.signal.signal(update);
+
+
+            Timer::after_millis(self.update_freq_ms.into()).await;
+        }
+    }
+}
+

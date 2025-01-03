@@ -13,10 +13,11 @@
 #[macro_use]
 mod util;
 
-mod dfu;
+mod i2c;
 mod key_codes;
 mod key_matrix;
-mod keyboard;
+mod key_hid;
+mod key_map;
 mod logging;
 mod neopixel;
 mod serial;
@@ -28,38 +29,50 @@ use embassy_futures::select::select;
 use embassy_rp::dma::AnyChannel;
 use embassy_rp::gpio::Pin;
 use embassy_rp::watchdog::Watchdog;
-use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::signal::Signal;
 use embassy_sync::watch::Watch;
 use embassy_time::Timer;
-use key_matrix::{NUM_COLS, NUM_ROWS};
-use keyboard::KeyboardIf;
+use i2c::{I2cMaster, I2cSlave};
+use key_hid::KeyboardIf;
+use key_map::{BasicKeymap, NUM_COLS, NUM_ROWS};
+use key_matrix::KeyMatrix;
 use logging::{LoggerIf, LoggerRxSink};
 use neopixel::{Color, Neopixel};
 use panic_halt as _;
 
 use embassy_executor::Spawner;
-use embassy_rp::bind_interrupts;
-use embassy_rp::peripherals::{FLASH, PIO0, USB};
+use embassy_rp::{bind_interrupts, i2c_slave};
+use embassy_rp::peripherals::{FLASH, I2C0, PIO0, USB};
 use embassy_rp::pio::{self, Pio};
 use embassy_rp::usb::{self, Driver};
 use embassy_usb::class::{cdc_acm, hid};
 use embassy_usb::{Config, Handler, UsbDevice};
+use picodox_proto::KeyUpdate;
 use portable_atomic::AtomicBool;
 use serial::SerialIf;
 use static_cell::StaticCell;
+use util::MutexType;
 
 bind_interrupts!(struct Irqs {
     USBCTRL_IRQ => usb::InterruptHandler<USB>;
     PIO0_IRQ_0 => pio::InterruptHandler<PIO0>;
+    I2C0_IRQ => embassy_rp::i2c::InterruptHandler<I2C0>;
 });
 
-static INITIATE_SHUTDOWN: Watch<CriticalSectionRawMutex, (), 1> = Watch::new();
-static USB_SHUTDOWN: Signal<CriticalSectionRawMutex, ()> = Signal::new();
+static INITIATE_SHUTDOWN: Watch<MutexType, (), 1> = Watch::new();
+static USB_SHUTDOWN: Signal<MutexType, ()> = Signal::new();
+const UPDATE_RATE_MS: u32 = 20;
 
+#[allow(dead_code)]
+#[derive(PartialEq, Eq)]
 enum Hand {
     Left,
     Right,
+}
+
+enum I2cDir<P: embassy_rp::i2c::Instance + 'static>  {
+    Master(I2cMaster<'static, P>),
+    Slave(I2cSlave<'static, P>),
 }
 
 #[cfg(not(feature = "right"))]
@@ -87,7 +100,10 @@ async fn main(spawner: Spawner) {
         let mut config = Config::new(USB_VID, USB_PID);
         config.device_class = 0; // from: https://www.usb.org/defined-class-codes
         config.manufacturer = Some("rr Industries");
-        config.product = Some("Picodox Keyboard");
+        match THIS_HAND {
+            Hand::Left => config.product = Some("Picodox Keyboard (Left)"),
+            Hand::Right => config.product = Some("Picodox Keyboard (Right)"),
+        }
         config.serial_number = Some("0000-0001");
         config.max_power = 100; // mA
         config.max_packet_size_0 = 64;
@@ -113,11 +129,6 @@ async fn main(spawner: Spawner) {
         builder
     };
 
-    //let dfu_state = {
-    //    static DFU_STATE: StaticCell<FirmwareState> = StaticCell::new();
-    //    DFU_STATE.init(FirmwareState::new())
-    //};
-
     // Create classes on the builder.
     let serial = {
         static STATE: StaticCell<cdc_acm::State> = StaticCell::new();
@@ -126,7 +137,6 @@ async fn main(spawner: Spawner) {
             &mut builder,
             state,
             watchdog,
-            //dfu_state.get_intf(),
         )
     };
 
@@ -136,19 +146,18 @@ async fn main(spawner: Spawner) {
         logging::new(&mut builder, state)
     };
 
-    static LED_SIGNAL: Signal<CriticalSectionRawMutex, Color> = Signal::new();
+    static LED_SIGNAL: Signal<MutexType, Color> = Signal::new();
     let neopixel = {
         let pio0 = Pio::new(p.PIO0, Irqs);
         Neopixel::new(pio0, p.PIN_17, AnyChannel::from(p.DMA_CH0), &LED_SIGNAL)
     };
 
-    //let dfu = FirmwareRecvr::new(p.FLASH, AnyChannel::from(p.DMA_CH1), dfu_state);
-
     // p.PIN_19 is rotary encoder momentary switch
 
-    let keyboard = {
-        static STATE: StaticCell<hid::State> = StaticCell::new();
-        let state = STATE.init(Default::default());
+    static LEFT_SIGNAL: Signal<MutexType, KeyUpdate> = Signal::new();
+    static RIGHT_SIGNAL: Signal<MutexType, KeyUpdate> = Signal::new();
+
+    let key_mat = {
         // Row Pins (from kb2040 pin numbers)
         // [1, 2, 7, 8, 9]
         let row_pins = [
@@ -169,8 +178,26 @@ async fn main(spawner: Spawner) {
             p.PIN_8.degrade(),
             p.PIN_7.degrade(),
         ];
-        KeyboardIf::new(&mut builder, state, col_pins, row_pins)
+        let my_signal = match THIS_HAND {
+            Hand::Left => &LEFT_SIGNAL,
+            Hand::Right => &RIGHT_SIGNAL,
+        };
+        KeyMatrix::new(col_pins, row_pins, my_signal, UPDATE_RATE_MS)
     };
+
+    let key_hid = if THIS_HAND == Hand::Left {
+        static STATE: StaticCell<hid::State> = StaticCell::new();
+        let state = STATE.init(Default::default());
+
+        Some(KeyboardIf::new (
+            &mut builder,
+            state,
+            &LEFT_SIGNAL,
+            &RIGHT_SIGNAL,
+            UPDATE_RATE_MS,
+            BasicKeymap {},
+        ))
+    } else { None };
 
     static DEVICE_HANDLER: StaticCell<MyDeviceHandler> = StaticCell::new();
     builder.handler(DEVICE_HANDLER.init(MyDeviceHandler::new()));
@@ -178,14 +205,38 @@ async fn main(spawner: Spawner) {
     // Build the usb device
     let usb = builder.build();
 
+    let i2c = {
+        let sda = p.PIN_12;
+        let scl = p.PIN_13;
+
+        match THIS_HAND {
+            Hand::Left => {
+                let i2c = I2cSlave::new(p.I2C0, scl, sda, Irqs, &RIGHT_SIGNAL);
+                I2cDir::Slave(i2c)
+            }
+            Hand::Right => {
+                let i2c = I2cMaster::new(p.I2C0, scl, sda, Irqs, &RIGHT_SIGNAL);
+                I2cDir::Master(i2c)
+            }
+        }
+    };
+
     spawner.must_spawn(serial_task(serial));
     spawner.must_spawn(logger_task(logger));
     spawner.must_spawn(logger_rx_task(logger_rx));
     spawner.must_spawn(usb_task(usb));
     spawner.must_spawn(neopixel_task(neopixel));
     spawner.must_spawn(hello_task(&LED_SIGNAL));
-    spawner.must_spawn(keyboard_task(keyboard));
-    //spawner.must_spawn(dfu_task(dfu));
+    spawner.must_spawn(key_mat_task(key_mat));
+
+    if let Some(key_hid) = key_hid {
+        spawner.must_spawn(key_hid_task(key_hid));
+    };
+
+    match i2c {
+        I2cDir::Master(m) => spawner.must_spawn(i2c_master_task(m)),
+        I2cDir::Slave(s) => spawner.must_spawn(i2c_slave_task(s)),
+    };
 }
 
 async fn shutdown() {
@@ -223,12 +274,17 @@ async fn neopixel_task(mut neopixel: Neopixel<'static, PIO0>) -> ! {
 }
 
 #[embassy_executor::task]
-async fn keyboard_task(keyboard: KeyboardIf<'static, Driver<'static, USB>, NUM_ROWS, NUM_COLS>) {
+async fn key_hid_task(keyboard: KeyboardIf<'static, Driver<'static, USB>, BasicKeymap>) {
     keyboard.run().await;
 }
 
 #[embassy_executor::task]
-async fn hello_task(led_signal: &'static Signal<CriticalSectionRawMutex, Color>) -> ! {
+async fn key_mat_task(keyboard: KeyMatrix<'static, { NUM_ROWS }, { NUM_COLS }>) {
+    keyboard.run().await;
+}
+
+#[embassy_executor::task]
+async fn hello_task(led_signal: &'static Signal<MutexType, Color>) -> ! {
     let mut i = 0usize;
     let mut b = false;
     loop {
@@ -236,17 +292,6 @@ async fn hello_task(led_signal: &'static Signal<CriticalSectionRawMutex, Color>)
             println!("Hello World #{} :-)", i / 10);
             //println!("Handed loc: {}", unsafe { __keyboard_meta_start } );
 
-            extern "C" {
-                static __keyboard_meta_start: u32;
-                static __keyboard_meta_end: u32;
-            }
-
-            unsafe {
-                let start = &__keyboard_meta_start as *const u32 as u32;
-                let end = &__keyboard_meta_end as *const u32 as u32;
-                const XIP_BASE: u32 = 0x10000000;
-                println!("Handed: 0x{:x} = {}", start, *((start | XIP_BASE) as *const u8));
-            }
             defmt::flush();
             b = !b;
         }
@@ -262,10 +307,15 @@ async fn hello_task(led_signal: &'static Signal<CriticalSectionRawMutex, Color>)
 
 }
 
-//#[embassy_executor::task]
-//async fn dfu_task(dfu: FirmwareRecvr<'static, FLASH>) -> ! {
-//    dfu.run().await
-//}
+#[embassy_executor::task]
+async fn i2c_master_task(mut i2c: I2cMaster<'static, I2C0>) -> ! {
+    i2c.run().await
+}
+
+#[embassy_executor::task]
+async fn i2c_slave_task(mut i2c: I2cSlave<'static, I2C0>) -> ! {
+    i2c.run().await
+}
 
 //TODO: Cleanup Below
 struct MyDeviceHandler {
