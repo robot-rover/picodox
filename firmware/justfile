@@ -21,8 +21,8 @@ PANIC_SCRATCH_FILE := "target/panic.bin"
 
 panic:
   #!/usr/bin/env bash
-  set -euo pipefail
-  BUF_OFFSET=$(readelf -a target/thumbv6m-none-eabi/release/picodox-firmware | rg "\d+:\s+(\d+)\s.+PANIC_BUFFER" --trim -r '$1')
+  set -euxo pipefail
+  BUF_OFFSET=$(readelf -a target/thumbv6m-none-eabi/release/picodox-firmware | rg "\d+:\s+([0-9a-f]+)\s.+PANIC_BUFFER" --trim -r '$1')
   # printf -v BUF_END "%#x" '(0x$BUF_OFFSET + {{ PANIC_BUF_SIZE }} - 1)'
   printf -v BUF_END "%#x" "$((0x$BUF_OFFSET + {{ PANIC_BUF_SIZE }} - 1))"
   picotool save -r $BUF_OFFSET $BUF_END {{ PANIC_SCRATCH_FILE }}
