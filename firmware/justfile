@@ -1,6 +1,7 @@
+BINARY := "target/thumbv6m-none-eabi/release/picodox-firmware"
 compile:
   cargo build --release
-  elf2uf2-rs target/thumbv6m-none-eabi/debug/picodox-firmware target/thumbv6m-none-eabi/release/picodox-firmware.uf2
+  elf2uf2-rs {{ BINARY }} {{ BINARY }}.uf2
 
 HAND := "left"
 
@@ -9,8 +10,20 @@ HAND_FEAT := if HAND == "left" { "" } else if HAND == "right" { "--features=righ
 flash:
   -cd ../cli && cargo run dfu
   cargo build --release {{ HAND_FEAT }}
-  picotool load -t elf target/thumbv6m-none-eabi/release/picodox-firmware
+  picotool load -t elf {{ BINARY }}
   picotool reboot
 
 log DEV="/dev/ttyACM1":
-  socat -u {{ DEV }},rawer STDOUT | defmt-print -e target/thumbv6m-none-eabi/release/picodox-firmware
+  socat -u {{ DEV }},rawer STDOUT | defmt-print -e {{ BINARY }}
+
+PANIC_BUF_SIZE := "1024"
+PANIC_SCRATCH_FILE := "target/panic.bin"
+
+panic:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  BUF_OFFSET=$(readelf -a target/thumbv6m-none-eabi/release/picodox-firmware | rg "\d+:\s+(\d+)\s.+PANIC_BUFFER" --trim -r '$1')
+  # printf -v BUF_END "%#x" '(0x$BUF_OFFSET + {{ PANIC_BUF_SIZE }} - 1)'
+  printf -v BUF_END "%#x" "$((0x$BUF_OFFSET + {{ PANIC_BUF_SIZE }} - 1))"
+  picotool save -r $BUF_OFFSET $BUF_END {{ PANIC_SCRATCH_FILE }}
+  cat {{ PANIC_SCRATCH_FILE }}

@@ -7,7 +7,6 @@ edition = "2021"
 # RT Support Code
 cortex-m = "0.7.7"
 cortex-m-rt = "0.7.5"
-panic-halt = "1.0.0"
 critical-section = "1.2.0"
 
 # Wire Serialization

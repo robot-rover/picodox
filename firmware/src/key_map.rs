@@ -31,39 +31,23 @@ const LEFT_KEY_MATRIX: [[Key; NUM_COLS]; NUM_ROWS] = [
         KEY_BACKSPACE,
         KEY_MOD_LCTRL,
         KEY_MOD_LALT,
-        KEY_KPMINUS,
-        KEY_KPPLUS,
-        KEY_1,
+        KEY_EQUAL,
+        KEY_MINUS,
+        KEY_MOD_LMETA,
     ],
 ];
 
 const RIGHT_KEY_MATRIX: [[Key; NUM_COLS]; NUM_ROWS] = [
     // K1-K7
-    [KEY_A, KEY_A, KEY_A, KEY_A, KEY_A, KEY_A, KEY_A],
+    [KEY_NONE, KEY_6, KEY_7, KEY_8, KEY_9, KEY_0, KEY_NONE],
     // K8-K14
-    [KEY_A, KEY_A, KEY_A, KEY_A, KEY_A, KEY_A, KEY_A],
+    [KEY_RIGHTBRACE, KEY_Y, KEY_U, KEY_I, KEY_O, KEY_P, KEY_NONE],
     // K15-K21
-    [KEY_A, KEY_A, KEY_A, KEY_A, KEY_A, KEY_A, KEY_A],
+    [KEY_END, KEY_H, KEY_J, KEY_K, KEY_L, KEY_SEMICOLON, KEY_APOSTROPHE],
     // K22-K28
-    [
-        KEY_A,
-        KEY_A,
-        KEY_A,
-        KEY_A,
-        KEY_A,
-        KEY_A,
-        KEY_A,
-    ],
+    [KEY_HOME, KEY_N, KEY_M, KEY_COMMA, KEY_DOT, KEY_SLASH, KEY_MOD_RSHIFT],
     // K29-K35
-    [
-        KEY_A,
-        KEY_A,
-        KEY_A,
-        KEY_A,
-        KEY_A,
-        KEY_A,
-        KEY_A,
-    ],
+    [KEY_ENTER, KEY_SPACE, KEY_MOD_RALT, KEY_LEFT, KEY_DOWN, KEY_UP, KEY_RIGHT],
 ];
 
 pub struct BasicKeymap {

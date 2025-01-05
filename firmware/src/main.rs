@@ -21,6 +21,7 @@ mod key_map;
 mod logging;
 mod neopixel;
 mod serial;
+mod panic_handler;
 
 use core::sync::atomic::Ordering;
 
@@ -38,10 +39,9 @@ use key_map::{BasicKeymap, NUM_COLS, NUM_ROWS};
 use key_matrix::KeyMatrix;
 use logging::{LoggerIf, LoggerRxSink};
 use neopixel::{Color, Neopixel};
-use panic_halt as _;
 
 use embassy_executor::Spawner;
-use embassy_rp::{bind_interrupts, i2c_slave};
+use embassy_rp::{bind_interrupts, i2c_slave, rom_data};
 use embassy_rp::peripherals::{FLASH, I2C0, PIO0, USB};
 use embassy_rp::pio::{self, Pio};
 use embassy_rp::usb::{self, Driver};
