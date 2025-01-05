@@ -1,4 +1,3 @@
-use core::future::pending;
 
 use circular_buffer::CircularBuffer;
 use defmt::{error, info};
@@ -9,7 +8,7 @@ use embassy_usb::{
     driver::Driver,
     Builder,
 };
-use picodox_proto::{AckType, Command, NackType, Response, WireSize, DATA_COUNT};
+use picodox_proto::{Command, NackType, Response, WireSize, DATA_COUNT};
 // USB Communications Class Device support
 
 use picodox_proto::proto_impl;

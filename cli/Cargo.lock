@@ -446,6 +446,7 @@ dependencies = [
  "clap",
  "cobs",
  "crc",
+ "defmt",
  "picodox-proto",
  "postcard",
  "serde",
@@ -460,7 +461,6 @@ version = "0.1.0"
 dependencies = [
  "cobs",
  "crc",
- "defmt",
  "heapless",
  "postcard",
  "serde",

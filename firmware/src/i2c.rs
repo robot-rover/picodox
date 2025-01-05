@@ -1,7 +1,6 @@
 use defmt::{info, println, warn};
-use embassy_futures::select::{select, Either};
-use embassy_rp::{i2c::{self, Async, Config, I2c, Instance, InterruptHandler, SclPin, SdaPin}, i2c_slave::{self, Command}, interrupt::typelevel::Binding, Peripheral};
-use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
+use embassy_rp::{i2c::{Async, Config, I2c, Instance, InterruptHandler, SclPin, SdaPin}, i2c_slave::{self, Command}, interrupt::typelevel::Binding, Peripheral};
+use embassy_sync::signal::Signal;
 use heapless::Vec;
 use picodox_proto::{proto_impl, KeyUpdate, WireSize};
 

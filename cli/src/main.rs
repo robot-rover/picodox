@@ -8,7 +8,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use clap::{Parser, Subcommand};
 
 use crc::{Crc, CRC_8_BLUETOOTH};
-use picodox_proto::{AckType, Command, Response, DATA_COUNT};
+use picodox_proto::{Command, Response, DATA_COUNT};
 use serde::{de::DeserializeOwned, Serialize};
 use serialport::SerialPort;
 use uf2::{Uf2Block, Uf2Flags};
@@ -309,9 +309,7 @@ mod tests {
     use std::fmt;
 
     use picodox_proto::{
-        errors::ProtoError,
-        proto_impl::{self},
-        KeyResponse, NackType, WireSize,
+        errors::ProtoError, proto_impl::{self}, KeyUpdate, MatrixLoc, NackType, WireSize
     };
 
     use super::*;
@@ -328,11 +326,10 @@ mod tests {
         Response::Nack(NackType::PacketErr(ProtoError::BufferSize)),
     ];
 
-    fn key_cases() -> Vec<KeyResponse> {
+    fn key_cases() -> Vec<KeyUpdate> {
         vec![
-            KeyResponse::Response(Response::Ack(AckType::AckReset)),
-            KeyResponse::keys([8u8, 12u8, 1u8]),
-            KeyResponse::no_keys(),
+            KeyUpdate::keys([MatrixLoc::new(1, 2), MatrixLoc::new(20, 13)]),
+            KeyUpdate::no_keys(),
         ]
     }
 
@@ -413,6 +410,6 @@ mod tests {
 
     #[test]
     fn key_response_cs() {
-        round_trip::<KeyResponse, { KeyResponse::CS_MAX_SIZE }>(2, 2, &key_cases())
+        round_trip::<KeyUpdate, { KeyUpdate::CS_MAX_SIZE }>(2, 2, &key_cases())
     }
 }

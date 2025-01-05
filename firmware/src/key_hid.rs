@@ -1,6 +1,5 @@
 use defmt::{info, warn};
 use embassy_futures::join::join;
-use embassy_rp::gpio::{AnyPin, Input, Level, Output, Pull};
 use embassy_sync::signal::Signal;
 use embassy_time::Timer;
 use embassy_usb::{
@@ -9,14 +8,10 @@ use embassy_usb::{
     driver::Driver,
     Builder,
 };
-use heapless::Vec;
 use picodox_proto::KeyUpdate;
 use usbd_hid::descriptor::{KeyboardReport, SerializedDescriptor as _};
 
-use crate::{
-    key_codes::{Key, KeyCode, KeyMod},
-    key_matrix, util::MutexType,
-};
+use crate::util::MutexType;
 
 pub trait Keymap {
     fn get_report(&mut self, left: &KeyUpdate, right: &KeyUpdate) -> KeyboardReport;

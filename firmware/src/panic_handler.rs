@@ -1,8 +1,6 @@
-use core::{fmt::{self, Error, Write}, panic::PanicInfo, ptr::addr_of_mut, sync::atomic::Ordering};
+use core::{fmt::{self, Write}, panic::PanicInfo, ptr::addr_of_mut};
 
-use embassy_rp::{peripherals::{PIN_28, PIN_29, UART0}, rom_data, uart::{Config, Uart, UartTx}};
-use portable_atomic::AtomicBool;
-use static_cell::StaticCell;
+use embassy_rp::rom_data;
 
 const PANIC_BUFFER_SIZE: usize = 1024;
 

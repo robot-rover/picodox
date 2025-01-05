@@ -1,4 +1,3 @@
-use defmt::warn;
 use embassy_rp::gpio::{AnyPin, Input, Level, Output, Pull};
 use embassy_sync::signal::Signal;
 use embassy_time::Timer;

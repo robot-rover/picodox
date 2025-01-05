@@ -1,4 +1,3 @@
-use defmt::println;
 use heapless::Vec;
 use picodox_proto::KeyUpdate;
 use usbd_hid::descriptor::KeyboardReport;

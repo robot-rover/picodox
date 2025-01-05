@@ -1,6 +1,5 @@
 #![no_std]
 
-use defmt::error;
 use errors::ProtoError;
 use heapless::Vec;
 use postcard::experimental::max_size::MaxSize;
@@ -74,9 +73,6 @@ pub struct MatrixLoc(u8);
 
 impl MatrixLoc {
     pub fn new(row: usize, col: usize) -> Self {
-        if row > 0xF || col > 0xF {
-            error!("MatrixLoc out of bounds (row: {}, col: {})", row, col);
-        }
         MatrixLoc(((col << 4) | row) as u8)
     }
 

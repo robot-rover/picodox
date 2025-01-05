@@ -1046,7 +1046,6 @@ version = "0.1.0"
 dependencies = [
  "cobs",
  "crc",
- "defmt",
  "heapless 0.7.17",
  "postcard",
  "serde",

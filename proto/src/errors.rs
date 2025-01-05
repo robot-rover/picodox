@@ -1,8 +1,8 @@
 use postcard::experimental::max_size::MaxSize;
 use serde::{Deserialize, Serialize};
-use defmt;
 
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, MaxSize, defmt::Format)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, MaxSize)]
 pub enum ProtoError {
     BufferSize,
     PostcardError(u8),

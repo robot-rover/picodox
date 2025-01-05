@@ -25,7 +25,7 @@ mod panic_handler;
 
 use core::sync::atomic::Ordering;
 
-use defmt::{error, info, println};
+use defmt::{info, println};
 use embassy_futures::select::select;
 use embassy_rp::dma::AnyChannel;
 use embassy_rp::gpio::Pin;
@@ -41,8 +41,8 @@ use logging::{LoggerIf, LoggerRxSink};
 use neopixel::{Color, Neopixel};
 
 use embassy_executor::Spawner;
-use embassy_rp::{bind_interrupts, i2c_slave, rom_data};
-use embassy_rp::peripherals::{FLASH, I2C0, PIO0, USB};
+use embassy_rp::bind_interrupts;
+use embassy_rp::peripherals::{I2C0, PIO0, USB};
 use embassy_rp::pio::{self, Pio};
 use embassy_rp::usb::{self, Driver};
 use embassy_usb::class::{cdc_acm, hid};
