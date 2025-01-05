@@ -4,10 +4,12 @@ use embassy_rp::{
     pio::{Config, FifoJoin, Instance, Pio, PioPin, ShiftConfig, ShiftDirection, StateMachine},
     Peripheral, PeripheralRef,
 };
-use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
+use embassy_sync::signal::Signal;
 use embassy_time::Timer;
 use fixed::types::U24F8;
 use pio::{Assembler, JmpCondition, OutDestination, SetDestination};
+
+use crate::util::MutexType;
 
 mod timing {
     pub const T1: u8 = 2; // start bit
@@ -73,7 +75,7 @@ impl From<Color> for u32 {
 pub struct Neopixel<'d, P: Instance> {
     dma: PeripheralRef<'d, AnyChannel>,
     sm: StateMachine<'d, P, 0>,
-    signal: &'d Signal<CriticalSectionRawMutex, Color>,
+    signal: &'d Signal<MutexType, Color>,
 }
 
 impl<'d, P: Instance> Neopixel<'d, P> {
@@ -81,7 +83,7 @@ impl<'d, P: Instance> Neopixel<'d, P> {
         pio: Pio<'d, P>,
         sig_pin: impl PioPin,
         dma: impl Peripheral<P = AnyChannel> + 'd,
-        color_signal: &'d Signal<CriticalSectionRawMutex, Color>,
+        color_signal: &'d Signal<MutexType, Color>,
     ) -> Self {
         let Pio {
             mut common,

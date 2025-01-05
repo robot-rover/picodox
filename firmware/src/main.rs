@@ -30,6 +30,7 @@ use embassy_futures::select::select;
 use embassy_rp::dma::AnyChannel;
 use embassy_rp::gpio::Pin;
 use embassy_rp::watchdog::Watchdog;
+use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::signal::Signal;
 use embassy_sync::watch::Watch;
 use embassy_time::Timer;
@@ -59,8 +60,9 @@ bind_interrupts!(struct Irqs {
     I2C0_IRQ => embassy_rp::i2c::InterruptHandler<I2C0>;
 });
 
-static INITIATE_SHUTDOWN: Watch<MutexType, (), 1> = Watch::new();
-static USB_SHUTDOWN: Signal<MutexType, ()> = Signal::new();
+static INITIATE_SHUTDOWN: Watch<CriticalSectionRawMutex, (), 1> = Watch::new();
+static USB_SHUTDOWN: Signal<CriticalSectionRawMutex, ()> = Signal::new();
+
 const UPDATE_RATE_MS: u32 = 20;
 
 #[allow(dead_code)]
@@ -146,16 +148,19 @@ async fn main(spawner: Spawner) {
         logging::new(&mut builder, state)
     };
 
-    static LED_SIGNAL: Signal<MutexType, Color> = Signal::new();
+    static LED_SIGNAL: StaticCell<Signal<MutexType, Color>> = StaticCell::new();
+    let led_signal = &*LED_SIGNAL.init(Signal::new());
     let neopixel = {
         let pio0 = Pio::new(p.PIO0, Irqs);
-        Neopixel::new(pio0, p.PIN_17, AnyChannel::from(p.DMA_CH0), &LED_SIGNAL)
+        Neopixel::new(pio0, p.PIN_17, AnyChannel::from(p.DMA_CH0), led_signal)
     };
 
     // p.PIN_19 is rotary encoder momentary switch
 
-    static LEFT_SIGNAL: Signal<MutexType, KeyUpdate> = Signal::new();
-    static RIGHT_SIGNAL: Signal<MutexType, KeyUpdate> = Signal::new();
+    static LEFT_SIGNAL: StaticCell<Signal<MutexType, KeyUpdate>> = StaticCell::new();
+    let left_signal = &*LEFT_SIGNAL.init(Signal::new());
+    static RIGHT_SIGNAL: StaticCell<Signal<MutexType, KeyUpdate>> = StaticCell::new();
+    let right_signal = &*RIGHT_SIGNAL.init(Signal::new());
 
     let key_mat = {
         // Row Pins (from kb2040 pin numbers)
@@ -179,8 +184,8 @@ async fn main(spawner: Spawner) {
             p.PIN_7.degrade(),
         ];
         let my_signal = match THIS_HAND {
-            Hand::Left => &LEFT_SIGNAL,
-            Hand::Right => &RIGHT_SIGNAL,
+            Hand::Left => left_signal,
+            Hand::Right => right_signal,
         };
         KeyMatrix::new(col_pins, row_pins, my_signal, UPDATE_RATE_MS)
     };
@@ -192,8 +197,8 @@ async fn main(spawner: Spawner) {
         Some(KeyboardIf::new (
             &mut builder,
             state,
-            &LEFT_SIGNAL,
-            &RIGHT_SIGNAL,
+            left_signal,
+            right_signal,
             UPDATE_RATE_MS,
             BasicKeymap {},
         ))
@@ -211,11 +216,11 @@ async fn main(spawner: Spawner) {
 
         match THIS_HAND {
             Hand::Left => {
-                let i2c = I2cSlave::new(p.I2C0, scl, sda, Irqs, &RIGHT_SIGNAL);
+                let i2c = I2cSlave::new(p.I2C0, scl, sda, Irqs, right_signal);
                 I2cDir::Slave(i2c)
             }
             Hand::Right => {
-                let i2c = I2cMaster::new(p.I2C0, scl, sda, Irqs, &RIGHT_SIGNAL);
+                let i2c = I2cMaster::new(p.I2C0, scl, sda, Irqs, right_signal);
                 I2cDir::Master(i2c)
             }
         }
@@ -226,7 +231,7 @@ async fn main(spawner: Spawner) {
     spawner.must_spawn(logger_rx_task(logger_rx));
     spawner.must_spawn(usb_task(usb));
     spawner.must_spawn(neopixel_task(neopixel));
-    spawner.must_spawn(hello_task(&LED_SIGNAL));
+    spawner.must_spawn(hello_task(&led_signal));
     spawner.must_spawn(key_mat_task(key_mat));
 
     if let Some(key_hid) = key_hid {
@@ -291,8 +296,6 @@ async fn hello_task(led_signal: &'static Signal<MutexType, Color>) -> ! {
         if i % 10 == 0 {
             println!("Hello World #{} :-)", i / 10);
             //println!("Handed loc: {}", unsafe { __keyboard_meta_start } );
-
-            defmt::flush();
             b = !b;
         }
 

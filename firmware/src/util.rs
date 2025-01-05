@@ -1,6 +1,6 @@
-use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
+use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 
-pub type MutexType = CriticalSectionRawMutex;
+pub type MutexType = NoopRawMutex;
 
 macro_rules! async_unwrap {
     (op $option:expr, $($error_args:expr),*) => {{
