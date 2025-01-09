@@ -1,7 +1,7 @@
 
 use circular_buffer::CircularBuffer;
 use defmt::{error, info};
-use embassy_rp::{rom_data, watchdog::Watchdog};
+use embassy_rp::{pac::WATCHDOG, peripherals::WATCHDOG, rom_data, watchdog::Watchdog};
 use embassy_time::Timer;
 use embassy_usb::{
     class::cdc_acm::{CdcAcmClass, State},
@@ -32,7 +32,6 @@ where
     class: CdcAcmClass<'d, D>,
     coms_buf: CircularBuffer<{ 2 * MAX_PACKET_SIZE }, u8>,
     pack_buf: [u8; MAX_PACKET_SIZE],
-    watchdog: Watchdog,
 }
 
 impl<'d, D: Driver<'d>> Packetizer<'d, D> {
@@ -139,14 +138,12 @@ impl<'d, D: Driver<'d>> SerialIf<'d, D> {
     pub fn new(
         builder: &mut Builder<'d, D>,
         state: &'d mut State<'d>,
-        watchdog: Watchdog,
         //dfu_intf: FirmwareIntf<'d>,
     ) -> Self {
         let packet = Packetizer {
             class: CdcAcmClass::new(builder, state, MAX_PACKET_SIZE as u16),
             coms_buf: CircularBuffer::new(),
             pack_buf: [0u8; MAX_PACKET_SIZE],
-            watchdog,
         };
 
         SerialIf { packet /*, dfu_intf*/ }
@@ -173,7 +170,9 @@ impl<'d, D: Driver<'d>> SerialIf<'d, D> {
             match message {
                 Command::Reset => {
                     crate::shutdown().await;
-                    self.packet.watchdog.trigger_reset();
+                    // Safety: this is safe as code will never return from this function
+                    let mut watchdog = Watchdog::new(unsafe { WATCHDOG::steal() });
+                    watchdog.trigger_reset();
                     loop {}
                 }
                 Command::UsbDfu => {

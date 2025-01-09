@@ -18,7 +18,7 @@ crc = "3.2.1"
 cobs = { version = "0.2.3", default-features = false }
 
 # Embassy
-embassy-executor = { version = "0.6.3", features = ["arch-cortex-m", "executor-thread"] }
+embassy-executor = { version = "0.7.0", features = ["arch-cortex-m", "executor-thread", "trace"] }
 embassy-time = { version = "0.3.2", features = ["generic-queue"] }
 embassy-rp = { version = "0.2.0", features = ["critical-section-impl", "time-driver", "defmt", "unstable-pac"] }
 embassy-usb = { version = "0.3.0", features = ["defmt", "max-handler-count-8", "max-interface-count-8"] }

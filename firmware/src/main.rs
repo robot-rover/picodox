@@ -33,7 +33,7 @@ use embassy_rp::watchdog::Watchdog;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::signal::Signal;
 use embassy_sync::watch::Watch;
-use embassy_time::Timer;
+use embassy_time::{Duration, Timer};
 use i2c::{I2cMaster, I2cSlave};
 use key_hid::KeyboardIf;
 use key_map::{BasicKeymap, NUM_COLS, NUM_ROWS};
@@ -42,7 +42,7 @@ use logging::{LoggerIf, LoggerRxSink};
 use neopixel::{Color, Neopixel};
 
 use embassy_executor::Spawner;
-use embassy_rp::bind_interrupts;
+use embassy_rp::{bind_interrupts, rom_data};
 use embassy_rp::peripherals::{I2C0, PIO0, USB};
 use embassy_rp::pio::{self, Pio};
 use embassy_rp::usb::{self, Driver};
@@ -86,9 +86,16 @@ const THIS_HAND: Hand = Hand::Right;
 async fn main(spawner: Spawner) {
     // TODO: Cleanup below
     let p = embassy_rp::init(Default::default());
-    // Disable the watchdog from the bootloader
-    embassy_rp::pac::WATCHDOG.ctrl().write(|w| w.set_enable(false));
-    let watchdog = Watchdog::new(p.WATCHDOG);
+    //// Disable the watchdog from the bootloader
+    //embassy_rp::pac::WATCHDOG.ctrl().write(|w| w.set_enable(false));
+    let reason = embassy_rp::pac::WATCHDOG.reason().read();
+    if reason.timer() {
+        // Watchdog triggered last reset, go to dfu mode
+        rom_data::reset_to_usb_boot(0, 0);
+        loop {}
+    }
+    let mut watchdog = Watchdog::new(p.WATCHDOG);
+    watchdog.start(Duration::from_secs(1));
 
 
     // Create the driver, from the HAL.
@@ -138,7 +145,6 @@ async fn main(spawner: Spawner) {
         SerialIf::new(
             &mut builder,
             state,
-            watchdog,
         )
     };
 
@@ -231,7 +237,7 @@ async fn main(spawner: Spawner) {
     spawner.must_spawn(logger_rx_task(logger_rx));
     spawner.must_spawn(usb_task(usb));
     spawner.must_spawn(neopixel_task(neopixel));
-    spawner.must_spawn(hello_task(&led_signal));
+    spawner.must_spawn(hello_task(&led_signal, watchdog));
     spawner.must_spawn(key_mat_task(key_mat));
 
     if let Some(key_hid) = key_hid {
@@ -289,7 +295,7 @@ async fn key_mat_task(keyboard: KeyMatrix<'static, { NUM_ROWS }, { NUM_COLS }>) 
 }
 
 #[embassy_executor::task]
-async fn hello_task(led_signal: &'static Signal<MutexType, Color>) -> ! {
+async fn hello_task(led_signal: &'static Signal<MutexType, Color>, mut watchdog: Watchdog) -> ! {
     let mut i = 0usize;
     let mut b = false;
     loop {
@@ -304,10 +310,10 @@ async fn hello_task(led_signal: &'static Signal<MutexType, Color>) -> ! {
         } else {
             Color::new(0, 0, 0)
         });
-        Timer::after_millis(100).await;
         i = i.wrapping_add(1);
+        watchdog.feed();
+        Timer::after_millis(100).await;
     }
-
 }
 
 #[embassy_executor::task]

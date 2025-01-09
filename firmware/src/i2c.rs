@@ -29,7 +29,6 @@ impl<'d, T: Instance> I2cMaster<'d, T> {
     pub async fn run(&mut self) -> ! {
         loop {
             let ku = self.signal.wait().await;
-            println!("I2C Master rx'd key update");
             let buffer: Vec<u8, { KeyUpdate::CS_MAX_SIZE }> = match proto_impl::cs_encode(&ku) {
                 Ok(b) => b,
                 Err(e) => {
@@ -37,7 +36,6 @@ impl<'d, T: Instance> I2cMaster<'d, T> {
                     continue
                 }
             };
-            println!("I2C Master encoded update, sending...");
             if let Err(e) = self.bus.write_async(0x55u16, buffer).await {
                 defmt::warn!("I2C Error: {:?}", e);
                 continue
@@ -75,7 +73,6 @@ impl <'d, T: Instance> I2cSlave<'d, T> {
                 Ok(event) => match event {
                     Command::GeneralCall(_) | Command::WriteRead(_) | Command::Read  => { warn!("Rv'd unexpected I2C") },
                     Command::Write(len) => {
-                        info!("Rv'd I2C Write");
                         let key_update: KeyUpdate = match proto_impl::cs_decode(&mut buffer[..len]) {
                             Ok(ku) => ku,
                             Err(e) => {

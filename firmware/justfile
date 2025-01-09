@@ -27,3 +27,15 @@ panic:
   printf -v BUF_END "%#x" "$((0x$BUF_OFFSET + {{ PANIC_BUF_SIZE }} - 1))"
   picotool save -r $BUF_OFFSET $BUF_END {{ PANIC_SCRATCH_FILE }}
   cat {{ PANIC_SCRATCH_FILE }}
+
+TRACE_BUF_SIZE := "1024"
+TRACE_SCRATCH_FILE := "target/trace.bin"
+
+trace:
+  #!/usr/bin/env bash
+  set -euxo pipefail
+  BUF_OFFSET=$(readelf -a target/thumbv6m-none-eabi/release/picodox-firmware | rg "\d+:\s+([0-9a-f]+)\s.+TRACE_BUFFER" --trim -r '$1')
+  # printf -v BUF_END "%#x" '(0x$BUF_OFFSET + {{ TRACE_BUF_SIZE }} - 1)'
+  printf -v BUF_END "%#x" "$((0x$BUF_OFFSET + {{ TRACE_BUF_SIZE }} - 1))"
+  picotool save -r $BUF_OFFSET $BUF_END {{ TRACE_SCRATCH_FILE }}
+  cat {{ TRACE_SCRATCH_FILE }}
