@@ -87,15 +87,15 @@ async fn main(spawner: Spawner) {
     // TODO: Cleanup below
     let p = embassy_rp::init(Default::default());
     //// Disable the watchdog from the bootloader
-    //embassy_rp::pac::WATCHDOG.ctrl().write(|w| w.set_enable(false));
-    let reason = embassy_rp::pac::WATCHDOG.reason().read();
-    if reason.timer() {
-        // Watchdog triggered last reset, go to dfu mode
-        rom_data::reset_to_usb_boot(0, 0);
-        loop {}
-    }
-    let mut watchdog = Watchdog::new(p.WATCHDOG);
-    watchdog.start(Duration::from_secs(1));
+    embassy_rp::pac::WATCHDOG.ctrl().write(|w| w.set_enable(false));
+    //let reason = embassy_rp::pac::WATCHDOG.reason().read();
+    //if reason.timer() {
+    //    // Watchdog triggered last reset, go to dfu mode
+    //    rom_data::reset_to_usb_boot(0, 0);
+    //    loop {}
+    //}
+    //let mut watchdog = Watchdog::new(p.WATCHDOG);
+    //watchdog.start(Duration::from_secs(1));
 
 
     // Create the driver, from the HAL.
@@ -237,7 +237,7 @@ async fn main(spawner: Spawner) {
     spawner.must_spawn(logger_rx_task(logger_rx));
     spawner.must_spawn(usb_task(usb));
     spawner.must_spawn(neopixel_task(neopixel));
-    spawner.must_spawn(hello_task(&led_signal, watchdog));
+    spawner.must_spawn(hello_task(&led_signal));
     spawner.must_spawn(key_mat_task(key_mat));
 
     if let Some(key_hid) = key_hid {
@@ -295,7 +295,7 @@ async fn key_mat_task(keyboard: KeyMatrix<'static, { NUM_ROWS }, { NUM_COLS }>) 
 }
 
 #[embassy_executor::task]
-async fn hello_task(led_signal: &'static Signal<MutexType, Color>, mut watchdog: Watchdog) -> ! {
+async fn hello_task(led_signal: &'static Signal<MutexType, Color>) -> ! {
     let mut i = 0usize;
     let mut b = false;
     loop {
@@ -311,7 +311,6 @@ async fn hello_task(led_signal: &'static Signal<MutexType, Color>, mut watchdog:
             Color::new(0, 0, 0)
         });
         i = i.wrapping_add(1);
-        watchdog.feed();
         Timer::after_millis(100).await;
     }
 }
