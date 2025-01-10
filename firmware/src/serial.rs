@@ -1,14 +1,13 @@
 
 use circular_buffer::CircularBuffer;
 use defmt::{error, info};
-use embassy_rp::{pac::WATCHDOG, peripherals::WATCHDOG, rom_data, watchdog::Watchdog};
-use embassy_time::Timer;
+use embassy_rp::{pac::{TIMER, WATCHDOG}, peripherals::WATCHDOG, rom_data, watchdog::Watchdog};
 use embassy_usb::{
     class::cdc_acm::{CdcAcmClass, State},
     driver::Driver,
     Builder,
 };
-use picodox_proto::{Command, NackType, Response, WireSize, DATA_COUNT};
+use picodox_proto::{Command, NackType, Response, TimerDebug, WireSize, DATA_COUNT};
 // USB Communications Class Device support
 
 use picodox_proto::proto_impl;
@@ -22,7 +21,6 @@ where
     D: Driver<'d>,
 {
     packet: Packetizer<'d, D>,
-    //dfu_intf: FirmwareIntf<'d>,
 }
 
 pub struct Packetizer<'d, D>
@@ -32,6 +30,17 @@ where
     class: CdcAcmClass<'d, D>,
     coms_buf: CircularBuffer<{ 2 * MAX_PACKET_SIZE }, u8>,
     pack_buf: [u8; MAX_PACKET_SIZE],
+}
+
+fn now() -> u64 {
+    loop {
+        let hi = TIMER.timerawh().read();
+        let lo = TIMER.timerawl().read();
+        let hi2 = TIMER.timerawh().read();
+        if hi == hi2 {
+            return (hi as u64) << 32 | (lo as u64);
+        }
+    };
 }
 
 impl<'d, D: Driver<'d>> Packetizer<'d, D> {
@@ -128,17 +137,10 @@ impl<'d, D: Driver<'d>> DataRecvr<'d, D> for EchoRecvr {
     }
 }
 
-//impl<'a, 'd, D: Driver<'d>> DataRecvr<'d, D> for FirmwareSession<'a, 'd> {
-//    async fn callback(&mut self, p: &mut Packetizer<'d, D>, data: &[u8; DATA_COUNT]) {
-//        self.write(data).await
-//    }
-//}
-
 impl<'d, D: Driver<'d>> SerialIf<'d, D> {
     pub fn new(
         builder: &mut Builder<'d, D>,
         state: &'d mut State<'d>,
-        //dfu_intf: FirmwareIntf<'d>,
     ) -> Self {
         let packet = Packetizer {
             class: CdcAcmClass::new(builder, state, MAX_PACKET_SIZE as u16),
@@ -146,19 +148,12 @@ impl<'d, D: Driver<'d>> SerialIf<'d, D> {
             pack_buf: [0u8; MAX_PACKET_SIZE],
         };
 
-        SerialIf { packet /*, dfu_intf*/ }
+        SerialIf { packet }
     }
 
     pub async fn run(&mut self) -> ! {
-        Timer::after_secs(5).await;
-        info!("Serial starting");
-        Timer::after_secs(2).await;
         loop {
-            info!("Waiting for packet");
-            Timer::after_secs(2).await;
             let res = self.packet.recv_cmd().await;
-            info!("Received command (err: {})", res.is_err());
-            Timer::after_secs(2).await;
             let message = match res {
                 Ok(cmd) => cmd,
                 Err(reason) => {
@@ -189,19 +184,18 @@ impl<'d, D: Driver<'d>> SerialIf<'d, D> {
                         .send_packet(&Response::Nack(NackType::Unexpected))
                         .await;
                 }
-                Command::FlashFw { count } => {
-                    // TODO
-                    //
-                    //info!("FlashFw count: {}", count);
-                    //let mut fw_session = self.dfu_intf.lock().await;
-                    //fw_session.begin().await;
-            //        self.packet.recv_data(count, &mut fw_session).await;
-            //        fw_session.finish().await;
-            //        self.packet
-            //            .send_packet(&Response::Ack(AckType::AckFlashFw))
-            //            .await;
+                Command::TimerDebug => {
+                    let current_time = now();
+                    let td = TimerDebug {
+                        current_time,
+                        fire_time: TIMER.alarm(0).read(),
+                        armed: TIMER.armed().read().0 & 0x1u32 != 0,
+                        enabled: TIMER.inte().read().0 & 0x1u32 != 0,
+                    };
+                    self.packet
+                        .send_packet(&Response::TimerDebug(td))
+                        .await;
                 }
-                _ => {},
             }
         }
     }

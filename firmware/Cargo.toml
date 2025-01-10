@@ -19,12 +19,12 @@ cobs = { version = "0.2.3", default-features = false }
 
 # Embassy
 embassy-executor = { version = "0.7.0", features = ["arch-cortex-m", "executor-thread", "trace"] }
-embassy-time = { version = "0.3.2", features = ["generic-queue"] }
-embassy-rp = { version = "0.2.0", features = ["critical-section-impl", "time-driver", "defmt", "unstable-pac"] }
+embassy-time = "0.4.0"
+embassy-rp = { version = "0.3.0", features = ["critical-section-impl", "time-driver", "defmt", "unstable-pac", "rp2040"] }
 embassy-usb = { version = "0.3.0", features = ["defmt", "max-handler-count-8", "max-interface-count-8"] }
 embassy-sync = "0.6.1"
 embassy-futures = "0.1.1"
-embassy-boot = { version = "0.3.0", features = ["defmt"] }
+embassy-embedded-hal = { version = "0.3.0", features = ["defmt"] }
 
 # Misc
 circular-buffer = { version = "0.1.9", default-features = false }
@@ -37,11 +37,19 @@ pio = "0.2.1"
 fixed = "1.28.0"
 usbd-hid = "0.8.2"
 embedded-storage-async = "0.4.1"
-embassy-embedded-hal = { version = "0.2.0", features = ["defmt"] }
 
 [profile.release]
 debug = true
 opt-level = 's'
+
+# [patch.crates-io]
+# embassy-executor = { git = "https://github.com/embassy-rs/embassy", rev = "cd70c19ab5652fd58ad397ccef207298d52e66aa" }
+# embassy-time = { git = "https://github.com/embassy-rs/embassy", rev = "cd70c19ab5652fd58ad397ccef207298d52e66aa" }
+# embassy-rp = { git = "https://github.com/embassy-rs/embassy", rev = "cd70c19ab5652fd58ad397ccef207298d52e66aa" }
+# embassy-usb = { git = "https://github.com/embassy-rs/embassy", rev = "cd70c19ab5652fd58ad397ccef207298d52e66aa" }
+# embassy-sync = { git = "https://github.com/embassy-rs/embassy", rev = "cd70c19ab5652fd58ad397ccef207298d52e66aa" }
+# embassy-futures = { git = "https://github.com/embassy-rs/embassy", rev = "cd70c19ab5652fd58ad397ccef207298d52e66aa" }
+# embassy-embedded-hal = { git = "https://github.com/embassy-rs/embassy", rev = "cd70c19ab5652fd58ad397ccef207298d52e66aa" }
 
 [features]
 right = []

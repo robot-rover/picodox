@@ -27,23 +27,23 @@ impl<T: MaxSize> WireSize for T {
     const CS_MAX_SIZE: usize = T::POSTCARD_MAX_SIZE + 1;
 }
 
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, MaxSize)]
-pub struct Version {
-    major: u16,
-    minor: u16,
-}
-
-pub const CURRENT_VERSION: Version = Version { major: 0, minor: 0 };
-
 pub const DATA_COUNT: usize = 8;
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, MaxSize)]
 pub enum Command {
     Reset,
     UsbDfu,
-    FlashFw { count: u32 },
     EchoMsg { count: u16 },
     Data([u8; DATA_COUNT]),
+    TimerDebug,
+}
+
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, MaxSize)]
+pub struct TimerDebug {
+    pub current_time: u64,
+    pub fire_time: u32,
+    pub armed: bool,
+    pub enabled: bool,
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, MaxSize)]
@@ -66,6 +66,7 @@ pub enum Response {
     Nack(NackType),
     EchoMsg { count: u16 },
     Data([u8; DATA_COUNT]),
+    TimerDebug(TimerDebug),
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize, MaxSize)]

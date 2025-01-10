@@ -158,7 +158,7 @@ async fn main(spawner: Spawner) {
     let led_signal = &*LED_SIGNAL.init(Signal::new());
     let neopixel = {
         let pio0 = Pio::new(p.PIO0, Irqs);
-        Neopixel::new(pio0, p.PIN_17, AnyChannel::from(p.DMA_CH0), led_signal)
+        Neopixel::new(pio0, p.PIN_17, p.PIN_25, AnyChannel::from(p.DMA_CH0), led_signal)
     };
 
     // p.PIN_19 is rotary encoder momentary switch
@@ -239,6 +239,7 @@ async fn main(spawner: Spawner) {
     spawner.must_spawn(neopixel_task(neopixel));
     spawner.must_spawn(hello_task(&led_signal));
     spawner.must_spawn(key_mat_task(key_mat));
+    //spawner.must_spawn(busy_task());
 
     if let Some(key_hid) = key_hid {
         spawner.must_spawn(key_hid_task(key_hid));
@@ -323,6 +324,11 @@ async fn i2c_master_task(mut i2c: I2cMaster<'static, I2C0>) -> ! {
 #[embassy_executor::task]
 async fn i2c_slave_task(mut i2c: I2cSlave<'static, I2C0>) -> ! {
     i2c.run().await
+}
+
+#[embassy_executor::task]
+async fn busy_task() -> ! {
+    loop { embassy_futures::yield_now().await; }
 }
 
 //TODO: Cleanup Below

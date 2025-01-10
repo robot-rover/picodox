@@ -1,8 +1,5 @@
 use embassy_rp::{
-    clocks,
-    dma::AnyChannel,
-    pio::{Config, FifoJoin, Instance, Pio, PioPin, ShiftConfig, ShiftDirection, StateMachine},
-    Peripheral, PeripheralRef,
+    clocks, dma::AnyChannel, gpio::{AnyPin, Level, Output, Pin}, pio::{Config, FifoJoin, Instance, Pio, PioPin, ShiftConfig, ShiftDirection, StateMachine}, Peripheral, PeripheralRef
 };
 use embassy_sync::signal::Signal;
 use embassy_time::Timer;
@@ -76,12 +73,14 @@ pub struct Neopixel<'d, P: Instance> {
     dma: PeripheralRef<'d, AnyChannel>,
     sm: StateMachine<'d, P, 0>,
     signal: &'d Signal<MutexType, Color>,
+    spare_pin: Output<'d>,
 }
 
 impl<'d, P: Instance> Neopixel<'d, P> {
     pub fn new(
         pio: Pio<'d, P>,
         sig_pin: impl PioPin,
+        spare_pin: impl Pin,
         dma: impl Peripheral<P = AnyChannel> + 'd,
         color_signal: &'d Signal<MutexType, Color>,
     ) -> Self {
@@ -124,12 +123,15 @@ impl<'d, P: Instance> Neopixel<'d, P> {
             sm: sm0,
             dma: dma.into_ref(),
             signal: color_signal,
+            spare_pin: Output::new(spare_pin.degrade().into_ref(), Level::Low),
         }
     }
 
     pub async fn run(&mut self) -> ! {
         loop {
-            let words: [u32; 1] = [self.signal.wait().await.into()];
+            let color = self.signal.wait().await;
+            self.spare_pin.set_level(if (color.r | color.g | color.b) > 0 { Level::High } else { Level::Low });
+            let words: [u32; 1] = [color.into()];
             self.sm.tx().dma_push(self.dma.reborrow(), &words).await;
             Timer::after_micros(55).await;
         }

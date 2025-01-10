@@ -31,11 +31,8 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum SubCommand {
-    #[command(about = "Flash new firmware to the keyboard using the serial interface")]
-    Flash {
-        #[arg(help = "The elf file to flash")]
-        path: String,
-    },
+    #[command()]
+    Debug,
     #[command(about = "Change the keyboard mcu into DFU flash mode")]
     Dfu,
     #[command(about = "Reset the keyboard mcu")]
@@ -69,15 +66,28 @@ fn main() {
         SubCommand::Dfu => usb_dfu(&args.device),
         SubCommand::ListSerial => list_serial(),
         SubCommand::Echo { msg } => send_echo(&args.device, &msg),
-        SubCommand::Flash { path } => flash_fw(&args.device, &path),
         SubCommand::Uf2 { path, verbose } => analyze_uf2(&path, verbose),
         SubCommand::Hand { path } => hand_uf2s(&path),
+        SubCommand::Debug => debug(&args.device),
     };
 
     if let Err(err) = res {
         println!("Error: {:#}", err);
         std::process::exit(1);
     }
+}
+
+fn debug(path: &str) -> Result<()> {
+    let mut port = open_port(path)?;
+    send_command(&mut port.get_mut(), &Command::TimerDebug)?;
+    let debug = match recv_response(&mut port)? {
+        Response::TimerDebug(debug) => debug,
+        Response::Nack(err) => bail!("Received nack waiting for Debug: {:?}", err),
+        other => bail!("Unexpected response: {:?}, expecting Debug", other),
+    };
+
+    println!("Debug: {:#?}", debug);
+    Ok(())
 }
 
 fn analyze_uf2(path: &str, verbose: bool) -> Result<()> {
@@ -140,20 +150,6 @@ fn hand_uf2s(path: &str) -> Result<()> {
     );
     let right_path = out_dir.join("right.uf2");
     fs::write(&right_path, right_block.to_bytes())?;
-
-    Ok(())
-}
-
-fn flash_fw(dev: &str, path: &str) -> Result<()> {
-    let mut port = open_port(dev)?;
-    let fw_bytes = fs::read(path)?;
-    let fw_len: u32 = fw_bytes.len().try_into().context("Firmware is too large")?;
-    send_command(&mut port.get_mut(), &Command::FlashFw { count: fw_len })?;
-    for chunk in fw_bytes.chunks(DATA_COUNT as usize) {
-        let mut data = [0u8; DATA_COUNT];
-        data[..chunk.len()].copy_from_slice(chunk);
-        send_command(&mut port.get_mut(), &Command::Data(data))?;
-    }
 
     Ok(())
 }
@@ -315,7 +311,6 @@ mod tests {
     use super::*;
 
     const COMMAND_CASES: &[Command] = &[
-        Command::FlashFw { count: 10 },
         Command::Data([0, 0, 3, 4, 5, 6, 0, 0]),
         Command::EchoMsg { count: 7 },
     ];
