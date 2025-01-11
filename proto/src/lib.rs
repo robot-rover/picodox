@@ -39,11 +39,19 @@ pub enum Command {
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, MaxSize)]
+pub struct TaskData {
+    pub state: u32,
+    pub loc: u32,
+    pub expires_at: u64,
+}
+
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, MaxSize)]
 pub struct TimerDebug {
     pub current_time: u64,
     pub fire_time: u32,
     pub armed: bool,
     pub enabled: bool,
+    pub tasks: Vec<TaskData, 32>,
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, MaxSize)]

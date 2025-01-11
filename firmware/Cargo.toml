@@ -18,7 +18,7 @@ crc = "3.2.1"
 cobs = { version = "0.2.3", default-features = false }
 
 # Embassy
-embassy-executor = { version = "0.7.0", features = ["arch-cortex-m", "executor-thread", "trace"] }
+embassy-executor = { version = "0.7.0", features = ["arch-cortex-m", "executor-thread", "trace", 'task-arena-size-16384'] }
 embassy-time = "0.4.0"
 embassy-rp = { version = "0.3.0", features = ["critical-section-impl", "time-driver", "defmt", "unstable-pac", "rp2040"] }
 embassy-usb = { version = "0.3.0", features = ["defmt", "max-handler-count-8", "max-interface-count-8"] }
@@ -42,7 +42,7 @@ embedded-storage-async = "0.4.1"
 debug = true
 opt-level = 's'
 
-# [patch.crates-io]
+[patch.crates-io]
 # embassy-executor = { git = "https://github.com/embassy-rs/embassy", rev = "cd70c19ab5652fd58ad397ccef207298d52e66aa" }
 # embassy-time = { git = "https://github.com/embassy-rs/embassy", rev = "cd70c19ab5652fd58ad397ccef207298d52e66aa" }
 # embassy-rp = { git = "https://github.com/embassy-rs/embassy", rev = "cd70c19ab5652fd58ad397ccef207298d52e66aa" }
@@ -50,6 +50,14 @@ opt-level = 's'
 # embassy-sync = { git = "https://github.com/embassy-rs/embassy", rev = "cd70c19ab5652fd58ad397ccef207298d52e66aa" }
 # embassy-futures = { git = "https://github.com/embassy-rs/embassy", rev = "cd70c19ab5652fd58ad397ccef207298d52e66aa" }
 # embassy-embedded-hal = { git = "https://github.com/embassy-rs/embassy", rev = "cd70c19ab5652fd58ad397ccef207298d52e66aa" }
+
+embassy-executor = { path = "../../embassy/embassy-executor" }
+embassy-time = { path = "../../embassy/embassy-time" }
+embassy-rp = { path = "../../embassy/embassy-rp" }
+embassy-usb = { path = "../../embassy/embassy-usb" }
+embassy-sync = { path = "../../embassy/embassy-sync" }
+embassy-futures = { path = "../../embassy/embassy-futures" }
+embassy-embedded-hal = { path = "../../embassy/embassy-embedded-hal" }
 
 [features]
 right = []

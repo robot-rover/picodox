@@ -1,13 +1,14 @@
 
 use circular_buffer::CircularBuffer;
 use defmt::{error, info};
-use embassy_rp::{pac::{TIMER, WATCHDOG}, peripherals::WATCHDOG, rom_data, watchdog::Watchdog};
+use embassy_rp::{pac::{TIMER, WATCHDOG}, peripherals::WATCHDOG, rom_data, time_driver::visit_timer_queue, watchdog::Watchdog};
 use embassy_usb::{
     class::cdc_acm::{CdcAcmClass, State},
     driver::Driver,
     Builder,
 };
-use picodox_proto::{Command, NackType, Response, TimerDebug, WireSize, DATA_COUNT};
+use heapless::Vec;
+use picodox_proto::{Command, NackType, Response, TaskData, TimerDebug, WireSize, DATA_COUNT};
 // USB Communications Class Device support
 
 use picodox_proto::proto_impl;
@@ -186,11 +187,24 @@ impl<'d, D: Driver<'d>> SerialIf<'d, D> {
                 }
                 Command::TimerDebug => {
                     let current_time = now();
+                    let mut tasks: Vec<TaskData, 32> = Vec::new();
+                    critical_section::with(|cs| {
+                        visit_timer_queue(cs, |item| {
+                            let td = TaskData {
+                                state: item.header().state.state.borrow(cs).get(),
+                                loc: item.header() as *const _ as u32,
+                                expires_at: item.timer_queue_item().expires_at.get(),
+                            };
+                            let _ = tasks.push(td);
+                        });
+                    });
+
                     let td = TimerDebug {
                         current_time,
                         fire_time: TIMER.alarm(0).read(),
                         armed: TIMER.armed().read().0 & 0x1u32 != 0,
                         enabled: TIMER.inte().read().0 & 0x1u32 != 0,
+                        tasks,
                     };
                     self.packet
                         .send_packet(&Response::TimerDebug(td))
@@ -200,3 +214,4 @@ impl<'d, D: Driver<'d>> SerialIf<'d, D> {
         }
     }
 }
+

@@ -107,7 +107,7 @@ async fn main(spawner: Spawner) {
         const USB_PID: u16 = 0xBEEF;
 
         let mut config = Config::new(USB_VID, USB_PID);
-        config.device_class = 0; // from: https://www.usb.org/defined-class-codes
+        //config.device_class = 0; // from: https://www.usb.org/defined-class-codes
         config.manufacturer = Some("rr Industries");
         match THIS_HAND {
             Hand::Left => config.product = Some("Picodox Keyboard (Left)"),
