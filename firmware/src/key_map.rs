@@ -26,8 +26,8 @@ const LEFT_KEY_MATRIX: [[Key; NUM_COLS]; NUM_ROWS] = [
     ],
     // K29-K35
     [
-        KEY_MOD_LSHIFT,
         KEY_BACKSPACE,
+        KEY_MOD_LSHIFT,
         KEY_MOD_LCTRL,
         KEY_MOD_LALT,
         KEY_NONE,
