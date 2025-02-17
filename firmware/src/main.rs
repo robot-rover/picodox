@@ -161,6 +161,7 @@ async fn main(spawner: Spawner) {
         let pio0 = Pio::new(p.PIO0, Irqs);
         Neopixel::new(pio0, p.PIN_17, p.PIN_25, AnyChannel::from(p.DMA_CH0), led_signal)
     };
+    led_signal.signal(Color::new(0, 0, 0));
 
     // p.PIN_19 is rotary encoder momentary switch
 
@@ -238,7 +239,7 @@ async fn main(spawner: Spawner) {
     spawner.must_spawn(logger_rx_task(logger_rx));
     spawner.must_spawn(usb_task(usb));
     spawner.must_spawn(neopixel_task(neopixel));
-    spawner.must_spawn(hello_task(&led_signal));
+    //spawner.must_spawn(hello_task(&led_signal));
     spawner.must_spawn(key_mat_task(key_mat));
     //spawner.must_spawn(busy_task());
 
