@@ -28,7 +28,7 @@ use core::sync::atomic::Ordering;
 use defmt::{info, println};
 use embassy_futures::select::select;
 use embassy_rp::dma::AnyChannel;
-use embassy_rp::gpio::Pin;
+use embassy_rp::gpio::{Input, Level, Pin, Pull};
 use embassy_rp::watchdog::Watchdog;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::signal::Signal;
@@ -43,7 +43,7 @@ use neopixel::{Color, Neopixel};
 
 use embassy_executor::Spawner;
 use embassy_rp::{bind_interrupts, rom_data};
-use embassy_rp::peripherals::{I2C0, PIO0, USB};
+use embassy_rp::peripherals::{I2C1, PIO0, USB};
 use embassy_rp::pio::{self, Pio};
 use embassy_rp::usb::{self, Driver};
 use embassy_usb::class::{cdc_acm, hid};
@@ -57,7 +57,7 @@ use util::MutexType;
 bind_interrupts!(struct Irqs {
     USBCTRL_IRQ => usb::InterruptHandler<USB>;
     PIO0_IRQ_0 => pio::InterruptHandler<PIO0>;
-    I2C0_IRQ => embassy_rp::i2c::InterruptHandler<I2C0>;
+    I2C1_IRQ => embassy_rp::i2c::InterruptHandler<I2C1>;
 });
 
 static INITIATE_SHUTDOWN: Watch<CriticalSectionRawMutex, (), 1> = Watch::new();
@@ -76,11 +76,6 @@ enum I2cDir<P: embassy_rp::i2c::Instance + 'static>  {
     Master(I2cMaster<'static, P>),
     Slave(I2cSlave<'static, P>),
 }
-
-#[cfg(not(feature = "right"))]
-const THIS_HAND: Hand = Hand::Left;
-#[cfg(feature = "right")]
-const THIS_HAND: Hand = Hand::Right;
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
@@ -101,6 +96,12 @@ async fn main(spawner: Spawner) {
     // Create the driver, from the HAL.
     let driver = usb::Driver::new(p.USB, Irqs);
 
+    let hand_pin = Input::new(p.PIN_10, Pull::None);
+    let this_hand = match hand_pin.get_level() {
+        Level::Low => Hand::Left,
+        Level::High => Hand::Right,
+    };
+
     // Create embassy-usb Config
     let config = {
         const USB_VID: u16 = 0x08B9;
@@ -109,7 +110,7 @@ async fn main(spawner: Spawner) {
         let mut config = Config::new(USB_VID, USB_PID);
         config.device_class = 0; // from: https://www.usb.org/defined-class-codes
         config.manufacturer = Some("rr Industries");
-        match THIS_HAND {
+        match this_hand {
             Hand::Left => config.product = Some("Picodox Keyboard (Left)"),
             Hand::Right => config.product = Some("Picodox Keyboard (Right)"),
         }
@@ -189,14 +190,14 @@ async fn main(spawner: Spawner) {
             p.PIN_8.degrade(),
             p.PIN_7.degrade(),
         ];
-        let my_signal = match THIS_HAND {
+        let my_signal = match this_hand {
             Hand::Left => left_signal,
             Hand::Right => right_signal,
         };
         KeyMatrix::new(col_pins, row_pins, my_signal, UPDATE_RATE_MS)
     };
 
-    let key_hid = if THIS_HAND == Hand::Left {
+    let key_hid = if this_hand == Hand::Left {
         static STATE: StaticCell<hid::State> = StaticCell::new();
         let state = STATE.init(Default::default());
 
@@ -217,16 +218,16 @@ async fn main(spawner: Spawner) {
     let usb = builder.build();
 
     let i2c = {
-        let sda = p.PIN_12;
-        let scl = p.PIN_13;
+        let sda = p.PIN_2;
+        let scl = p.PIN_3;
 
-        match THIS_HAND {
+        match this_hand {
             Hand::Left => {
-                let i2c = I2cSlave::new(p.I2C0, scl, sda, Irqs, right_signal);
+                let i2c = I2cSlave::new(p.I2C1, scl, sda, Irqs, right_signal);
                 I2cDir::Slave(i2c)
             }
             Hand::Right => {
-                let i2c = I2cMaster::new(p.I2C0, scl, sda, Irqs, right_signal);
+                let i2c = I2cMaster::new(p.I2C1, scl, sda, Irqs, right_signal);
                 I2cDir::Master(i2c)
             }
         }
@@ -317,12 +318,12 @@ async fn hello_task(led_signal: &'static Signal<MutexType, Color>) -> ! {
 }
 
 #[embassy_executor::task]
-async fn i2c_master_task(mut i2c: I2cMaster<'static, I2C0>) -> ! {
+async fn i2c_master_task(mut i2c: I2cMaster<'static, I2C1>) -> ! {
     i2c.run().await
 }
 
 #[embassy_executor::task]
-async fn i2c_slave_task(mut i2c: I2cSlave<'static, I2C0>) -> ! {
+async fn i2c_slave_task(mut i2c: I2cSlave<'static, I2C1>) -> ! {
     i2c.run().await
 }
 
