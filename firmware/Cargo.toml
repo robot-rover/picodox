@@ -20,10 +20,10 @@ cobs = { version = "0.2.3", default-features = false }
 # Embassy
 embassy-executor = { version = "0.7.0", features = ["arch-cortex-m", "executor-thread", "trace"] }
 embassy-time = "0.4.0"
-embassy-rp = { version = "0.3.0", features = ["critical-section-impl", "time-driver", "defmt", "unstable-pac", "rp2040"] }
+embassy-rp = { version = "0.3.1", features = ["critical-section-impl", "time-driver", "defmt", "unstable-pac", "rp2040"] }
 embassy-usb = { version = "0.3.0", features = ["defmt", "max-handler-count-8", "max-interface-count-8"] }
 embassy-sync = "0.6.1"
-embassy-futures = "0.1.1"
+embassy-futures = "0.1.0"
 embassy-embedded-hal = { version = "0.3.0", features = ["defmt"] }
 
 # Misc

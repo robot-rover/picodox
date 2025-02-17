@@ -409,9 +409,9 @@ dependencies = [
 
 [[package]]
 name = "embassy-rp"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8cfe90d82ebbfed9de96d9edc6d63b6619c0977b570a3ab1724f76023e72773b"
+checksum = "05062ab03d8f8579c1c1a884a94d2bdc46b91dba5c84d7e8d95072dd3f507d22"
 dependencies = [
  "atomic-polyfill",
  "cfg-if",
