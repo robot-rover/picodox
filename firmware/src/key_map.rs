@@ -49,13 +49,14 @@ const RIGHT_KEY_MATRIX: [[Key; NUM_COLS]; NUM_ROWS] = [
     [KEY_ENTER, KEY_SPACE, KEY_NONE, KEY_LEFT, KEY_DOWN, KEY_UP, KEY_RIGHT],
 ];
 
-pub struct BasicKeymap {
-}
+pub struct BasicKeymap { }
 
 impl Keymap for BasicKeymap {
     fn get_report(&mut self, left: &KeyUpdate, right: &KeyUpdate) -> KeyboardReport {
         let mut code_vec: Vec<u8, 6> = Vec::new();
         let mut modifier = 0u8;
+
+        let shift_pressed = left.0.iter().any(|lc| LEFT_KEY_MATRIX[lc.row()][lc.col()] == KEY_MOD_LSHIFT);
 
         for &lc in &left.0 {
             let code = LEFT_KEY_MATRIX[lc.row()][lc.col()];
