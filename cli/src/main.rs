@@ -1,5 +1,10 @@
 use std::{
-    cmp, fmt::Debug, fs, io::{BufRead, BufReader, Write}, path::Path, thread, time::{Duration, Instant}
+    cmp,
+    fmt::Debug,
+    fs,
+    io::{BufRead, BufReader, Write},
+    thread,
+    time::{Duration, Instant},
 };
 
 mod uf2;
@@ -51,11 +56,6 @@ enum SubCommand {
         #[arg(short, long)]
         verbose: bool,
     },
-    #[command(about = "Create uf2 files to program the handedness of the keyboard")]
-    Hand {
-        #[arg(help = "The location to put the generated uf2 files")]
-        path: String,
-    }
 }
 
 fn main() {
@@ -67,7 +67,6 @@ fn main() {
         SubCommand::ListSerial => list_serial(),
         SubCommand::Echo { msg } => send_echo(&args.device, &msg),
         SubCommand::Uf2 { path, verbose } => analyze_uf2(&path, verbose),
-        SubCommand::Hand { path } => hand_uf2s(&path),
         SubCommand::Debug => debug(&args.device),
     };
 
@@ -78,15 +77,8 @@ fn main() {
 }
 
 fn debug(path: &str) -> Result<()> {
-    let mut port = open_port(path)?;
-    send_command(&mut port.get_mut(), &Command::TimerDebug)?;
-    let debug = match recv_response(&mut port)? {
-        Response::TimerDebug(debug) => debug,
-        Response::Nack(err) => bail!("Received nack waiting for Debug: {:?}", err),
-        other => bail!("Unexpected response: {:?}, expecting Debug", other),
-    };
+    let port = open_port(path)?;
 
-    println!("Debug: {:#?}", debug);
     Ok(())
 }
 
@@ -119,37 +111,6 @@ fn analyze_uf2(path: &str, verbose: bool) -> Result<()> {
     }
 
     println!("0x{:x} ({} bytes)", bounds.0, bounds.1 - bounds.0);
-
-    Ok(())
-}
-
-fn hand_uf2s(path: &str) -> Result<()> {
-    const HANDED_OFFSET: u32 = 0x108000;
-    const RP2040_FAMILY_ID: u32 = 0xe48bff56;
-
-    let out_dir = Path::new(path);
-
-    let left_block = Uf2Block::new(
-        Uf2Flags::FamilyIdPres,
-        HANDED_OFFSET,
-        &[1u8],
-        1,
-        1,
-        RP2040_FAMILY_ID,
-    );
-    let left_path = out_dir.join("left.uf2");
-    fs::write(&left_path, left_block.to_bytes())?;
-
-    let right_block = Uf2Block::new(
-        Uf2Flags::FamilyIdPres,
-        HANDED_OFFSET,
-        &[2u8],
-        1,
-        1,
-        RP2040_FAMILY_ID,
-    );
-    let right_path = out_dir.join("right.uf2");
-    fs::write(&right_path, right_block.to_bytes())?;
 
     Ok(())
 }
@@ -305,7 +266,9 @@ mod tests {
     use std::fmt;
 
     use picodox_proto::{
-        errors::ProtoError, proto_impl::{self}, KeyUpdate, MatrixLoc, NackType, WireSize
+        errors::ProtoError,
+        proto_impl::{self},
+        KeyUpdate, MatrixLoc, NackType, WireSize,
     };
 
     use super::*;

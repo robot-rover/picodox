@@ -1,4 +1,9 @@
-use core::{fmt::{self, Write}, panic::PanicInfo, ptr::addr_of_mut, sync::atomic::{AtomicUsize, Ordering}};
+use core::{
+    fmt::{self, Write},
+    panic::PanicInfo,
+    ptr::addr_of_mut,
+    sync::atomic::{AtomicUsize, Ordering},
+};
 
 use cortex_m_rt::{exception, ExceptionFrame};
 use embassy_rp::rom_data;
@@ -10,7 +15,7 @@ static mut PANIC_BUFFER: [u8; BUFFER_SIZE] = [0u8; BUFFER_SIZE];
 
 struct PanicBuffer<'a> {
     buf: &'a mut [u8],
-    offset: usize
+    offset: usize,
 }
 
 impl<'a> fmt::Write for PanicBuffer<'a> {
@@ -40,7 +45,7 @@ fn panic_handler(panic_info: &PanicInfo<'_>) -> ! {
     let _ = writeln!(buffer, "Panic: {:#}", panic_info);
     rom_data::reset_to_usb_boot(0, 0);
 
-    loop { }
+    loop {}
 }
 
 #[exception]
@@ -71,7 +76,9 @@ impl<'a> fmt::Write for TraceBuffer {
             let remaining = BUFFER_SIZE - offset;
             let take = s.len().min(remaining);
             let write_part = &s[..take];
-            unsafe { TRACE_BUFFER[offset..(offset+take)].clone_from_slice(write_part.as_bytes()) };
+            unsafe {
+                TRACE_BUFFER[offset..(offset + take)].clone_from_slice(write_part.as_bytes())
+            };
 
             offset += take;
             s = &s[take..];
@@ -115,5 +122,3 @@ fn _embassy_trace_executor_idle(executor_id: u32) {
     let mut tb = TraceBuffer;
     let _ = writeln!(tb, "{{EI|exid:{}}}", executor_id);
 }
-
-

@@ -1,5 +1,9 @@
 use embassy_rp::{
-    clocks, dma::AnyChannel, gpio::{AnyPin, Level, Output, Pin}, pio::{Config, FifoJoin, Instance, Pio, PioPin, ShiftConfig, ShiftDirection, StateMachine}, Peripheral, PeripheralRef
+    clocks,
+    dma::AnyChannel,
+    gpio::{Level, Output, Pin},
+    pio::{Config, FifoJoin, Instance, Pio, PioPin, ShiftConfig, ShiftDirection, StateMachine},
+    Peripheral, PeripheralRef,
 };
 use embassy_sync::signal::Signal;
 use embassy_time::Timer;
@@ -130,7 +134,12 @@ impl<'d, P: Instance> Neopixel<'d, P> {
     pub async fn run(&mut self) -> ! {
         loop {
             let color = self.signal.wait().await;
-            self.spare_pin.set_level(if (color.r | color.g | color.b) > 0 { Level::High } else { Level::Low });
+            self.spare_pin
+                .set_level(if (color.r | color.g | color.b) > 0 {
+                    Level::High
+                } else {
+                    Level::Low
+                });
             let words: [u32; 1] = [color.into()];
             self.sm.tx().dma_push(self.dma.reborrow(), &words).await;
             Timer::after_micros(55).await;

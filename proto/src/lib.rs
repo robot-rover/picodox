@@ -35,7 +35,6 @@ pub enum Command {
     UsbDfu,
     EchoMsg { count: u16 },
     Data([u8; DATA_COUNT]),
-    TimerDebug,
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, MaxSize)]
@@ -135,9 +134,9 @@ mod tests {
     #[test]
     fn check_vec_size() {
         let mut short_vec = Vec::new();
-        short_vec.push(1u8).unwrap();
-        let short_bytes =
-            to_stdvec(&KeyResponse::KeyUpdate(KeyUpdate(short_vec))).expect("Cannot serialize short vec");
+        short_vec.push(MatrixLoc(1u8)).unwrap();
+        let short_bytes = to_stdvec(&KeyResponse::KeyUpdate(KeyUpdate(short_vec)))
+            .expect("Cannot serialize short vec");
 
         let long_arr = TestArrStruct([0u8; 10]);
         let long_bytes = to_stdvec(&long_arr).expect("Cannot serialize long vec");

@@ -15,13 +15,13 @@ mod util;
 
 mod i2c;
 mod key_codes;
-mod key_matrix;
 mod key_hid;
 mod key_map;
+mod key_matrix;
 mod logging;
 mod neopixel;
-mod serial;
 mod panic_handler;
+mod serial;
 
 use core::sync::atomic::Ordering;
 
@@ -29,11 +29,10 @@ use defmt::{info, println};
 use embassy_futures::select::select;
 use embassy_rp::dma::AnyChannel;
 use embassy_rp::gpio::{Input, Level, Pin, Pull};
-use embassy_rp::watchdog::Watchdog;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::signal::Signal;
 use embassy_sync::watch::Watch;
-use embassy_time::{Duration, Timer};
+use embassy_time::Timer;
 use i2c::{I2cMaster, I2cSlave};
 use key_hid::KeyboardIf;
 use key_map::{BasicKeymap, NUM_COLS, NUM_ROWS};
@@ -42,7 +41,7 @@ use logging::{LoggerIf, LoggerRxSink};
 use neopixel::{Color, Neopixel};
 
 use embassy_executor::Spawner;
-use embassy_rp::{bind_interrupts, rom_data};
+use embassy_rp::bind_interrupts;
 use embassy_rp::peripherals::{I2C1, PIO0, USB};
 use embassy_rp::pio::{self, Pio};
 use embassy_rp::usb::{self, Driver};
@@ -72,7 +71,7 @@ enum Hand {
     Right,
 }
 
-enum I2cDir<P: embassy_rp::i2c::Instance + 'static>  {
+enum I2cDir<P: embassy_rp::i2c::Instance + 'static> {
     Master(I2cMaster<'static, P>),
     Slave(I2cSlave<'static, P>),
 }
@@ -82,7 +81,9 @@ async fn main(spawner: Spawner) {
     // TODO: Cleanup below
     let p = embassy_rp::init(Default::default());
     //// Disable the watchdog from the bootloader
-    embassy_rp::pac::WATCHDOG.ctrl().write(|w| w.set_enable(false));
+    embassy_rp::pac::WATCHDOG
+        .ctrl()
+        .write(|w| w.set_enable(false));
     //let reason = embassy_rp::pac::WATCHDOG.reason().read();
     //if reason.timer() {
     //    // Watchdog triggered last reset, go to dfu mode
@@ -91,7 +92,6 @@ async fn main(spawner: Spawner) {
     //}
     //let mut watchdog = Watchdog::new(p.WATCHDOG);
     //watchdog.start(Duration::from_secs(1));
-
 
     // Create the driver, from the HAL.
     let driver = usb::Driver::new(p.USB, Irqs);
@@ -143,10 +143,7 @@ async fn main(spawner: Spawner) {
     let serial = {
         static STATE: StaticCell<cdc_acm::State> = StaticCell::new();
         let state = STATE.init(Default::default());
-        SerialIf::new(
-            &mut builder,
-            state,
-        )
+        SerialIf::new(&mut builder, state)
     };
 
     let (logger, logger_rx) = {
@@ -159,7 +156,13 @@ async fn main(spawner: Spawner) {
     let led_signal = &*LED_SIGNAL.init(Signal::new());
     let neopixel = {
         let pio0 = Pio::new(p.PIO0, Irqs);
-        Neopixel::new(pio0, p.PIN_17, p.PIN_25, AnyChannel::from(p.DMA_CH0), led_signal)
+        Neopixel::new(
+            pio0,
+            p.PIN_17,
+            p.PIN_25,
+            AnyChannel::from(p.DMA_CH0),
+            led_signal,
+        )
     };
     led_signal.signal(Color::new(0, 0, 0));
 
@@ -202,7 +205,7 @@ async fn main(spawner: Spawner) {
         static STATE: StaticCell<hid::State> = StaticCell::new();
         let state = STATE.init(Default::default());
 
-        Some(KeyboardIf::new (
+        Some(KeyboardIf::new(
             &mut builder,
             state,
             left_signal,
@@ -210,7 +213,9 @@ async fn main(spawner: Spawner) {
             UPDATE_RATE_MS,
             BasicKeymap {},
         ))
-    } else { None };
+    } else {
+        None
+    };
 
     static DEVICE_HANDLER: StaticCell<MyDeviceHandler> = StaticCell::new();
     builder.handler(DEVICE_HANDLER.init(MyDeviceHandler::new()));
@@ -330,7 +335,9 @@ async fn i2c_slave_task(mut i2c: I2cSlave<'static, I2C1>) -> ! {
 
 #[embassy_executor::task]
 async fn busy_task() -> ! {
-    loop { embassy_futures::yield_now().await; }
+    loop {
+        embassy_futures::yield_now().await;
+    }
 }
 
 //TODO: Cleanup Below

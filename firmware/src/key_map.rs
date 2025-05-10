@@ -15,15 +15,7 @@ const LEFT_KEY_MATRIX: [[Key; NUM_COLS]; NUM_ROWS] = [
     // K15-K21
     [KEY_PAGEUP, KEY_G, KEY_F, KEY_D, KEY_S, KEY_A, KEY_BACKSPACE],
     // K22-K28
-    [
-        KEY_PAGEDOWN,
-        KEY_B,
-        KEY_V,
-        KEY_C,
-        KEY_X,
-        KEY_Z,
-        KEY_NONE,
-    ],
+    [KEY_PAGEDOWN, KEY_B, KEY_V, KEY_C, KEY_X, KEY_Z, KEY_NONE],
     // K29-K35
     [
         KEY_ESC,
@@ -42,21 +34,33 @@ const RIGHT_KEY_MATRIX: [[Key; NUM_COLS]; NUM_ROWS] = [
     // K8-K14
     [KEY_RIGHTBRACE, KEY_Y, KEY_U, KEY_I, KEY_O, KEY_P, KEY_MINUS],
     // K15-K21
-    [KEY_END, KEY_H, KEY_J, KEY_K, KEY_L, KEY_SEMICOLON, KEY_APOSTROPHE],
+    [
+        KEY_END,
+        KEY_H,
+        KEY_J,
+        KEY_K,
+        KEY_L,
+        KEY_SEMICOLON,
+        KEY_APOSTROPHE,
+    ],
     // K22-K28
-    [KEY_HOME, KEY_N, KEY_M, KEY_COMMA, KEY_DOT, KEY_SLASH, KEY_NONE],
+    [
+        KEY_HOME, KEY_N, KEY_M, KEY_COMMA, KEY_DOT, KEY_SLASH, KEY_NONE,
+    ],
     // K29-K35
-    [KEY_ENTER, KEY_SPACE, KEY_NONE, KEY_LEFT, KEY_DOWN, KEY_UP, KEY_RIGHT],
+    [
+        KEY_ENTER, KEY_SPACE, KEY_NONE, KEY_LEFT, KEY_DOWN, KEY_UP, KEY_RIGHT,
+    ],
 ];
 
-pub struct BasicKeymap { }
+pub struct BasicKeymap {}
 
 impl Keymap for BasicKeymap {
     fn get_report(&mut self, left: &KeyUpdate, right: &KeyUpdate) -> KeyboardReport {
         let mut code_vec: Vec<u8, 6> = Vec::new();
         let mut modifier = 0u8;
 
-        let shift_pressed = left.0.iter().any(|lc| LEFT_KEY_MATRIX[lc.row()][lc.col()] == KEY_MOD_LSHIFT);
+        // let shift_pressed = left.0.iter().any(|lc| LEFT_KEY_MATRIX[lc.row()][lc.col()] == KEY_MOD_LSHIFT);
 
         for &lc in &left.0 {
             let code = LEFT_KEY_MATRIX[lc.row()][lc.col()];

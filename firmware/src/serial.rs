@@ -1,13 +1,12 @@
-
 use circular_buffer::CircularBuffer;
-use defmt::{error, info};
-use embassy_rp::{pac::{TIMER, WATCHDOG}, peripherals::WATCHDOG, rom_data, watchdog::Watchdog};
+use defmt::error;
+use embassy_rp::{peripherals::WATCHDOG, rom_data, watchdog::Watchdog};
 use embassy_usb::{
     class::cdc_acm::{CdcAcmClass, State},
     driver::Driver,
     Builder,
 };
-use picodox_proto::{Command, NackType, Response, TimerDebug, WireSize, DATA_COUNT};
+use picodox_proto::{Command, NackType, Response, WireSize, DATA_COUNT};
 // USB Communications Class Device support
 
 use picodox_proto::proto_impl;
@@ -30,17 +29,6 @@ where
     class: CdcAcmClass<'d, D>,
     coms_buf: CircularBuffer<{ 2 * MAX_PACKET_SIZE }, u8>,
     pack_buf: [u8; MAX_PACKET_SIZE],
-}
-
-fn now() -> u64 {
-    loop {
-        let hi = TIMER.timerawh().read();
-        let lo = TIMER.timerawl().read();
-        let hi2 = TIMER.timerawh().read();
-        if hi == hi2 {
-            return (hi as u64) << 32 | (lo as u64);
-        }
-    };
 }
 
 impl<'d, D: Driver<'d>> Packetizer<'d, D> {
@@ -138,10 +126,7 @@ impl<'d, D: Driver<'d>> DataRecvr<'d, D> for EchoRecvr {
 }
 
 impl<'d, D: Driver<'d>> SerialIf<'d, D> {
-    pub fn new(
-        builder: &mut Builder<'d, D>,
-        state: &'d mut State<'d>,
-    ) -> Self {
+    pub fn new(builder: &mut Builder<'d, D>, state: &'d mut State<'d>) -> Self {
         let packet = Packetizer {
             class: CdcAcmClass::new(builder, state, MAX_PACKET_SIZE as u16),
             coms_buf: CircularBuffer::new(),
@@ -182,18 +167,6 @@ impl<'d, D: Driver<'d>> SerialIf<'d, D> {
                 Command::Data(_data) => {
                     self.packet
                         .send_packet(&Response::Nack(NackType::Unexpected))
-                        .await;
-                }
-                Command::TimerDebug => {
-                    let current_time = now();
-                    let td = TimerDebug {
-                        current_time,
-                        fire_time: TIMER.alarm(0).read(),
-                        armed: TIMER.armed().read().0 & 0x1u32 != 0,
-                        enabled: TIMER.inte().read().0 & 0x1u32 != 0,
-                    };
-                    self.packet
-                        .send_packet(&Response::TimerDebug(td))
                         .await;
                 }
             }

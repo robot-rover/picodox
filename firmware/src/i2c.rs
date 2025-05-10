@@ -1,11 +1,15 @@
-use defmt::{info, println, warn};
-use embassy_rp::{i2c::{Async, Config, I2c, Instance, InterruptHandler, SclPin, SdaPin}, i2c_slave::{self, Command}, interrupt::typelevel::Binding, Peripheral};
+use defmt::warn;
+use embassy_rp::{
+    i2c::{Async, Config, I2c, Instance, InterruptHandler, SclPin, SdaPin},
+    i2c_slave::{self, Command},
+    interrupt::typelevel::Binding,
+    Peripheral,
+};
 use embassy_sync::signal::Signal;
 use heapless::Vec;
 use picodox_proto::{proto_impl, KeyUpdate, WireSize};
 
 use crate::util::MutexType;
-
 
 pub struct I2cMaster<'d, T: Instance> {
     bus: I2c<'d, T, Async>,
@@ -33,14 +37,13 @@ impl<'d, T: Instance> I2cMaster<'d, T> {
                 Ok(b) => b,
                 Err(e) => {
                     defmt::error!("I2C Encode Error: {:?}", e);
-                    continue
+                    continue;
                 }
             };
             if let Err(e) = self.bus.write_async(0x55u16, buffer).await {
                 defmt::warn!("I2C Error: {:?}", e);
-                continue
+                continue;
             }
-
         }
     }
 }
@@ -50,7 +53,7 @@ pub struct I2cSlave<'d, T: Instance> {
     signal: &'d Signal<MutexType, KeyUpdate>,
 }
 
-impl <'d, T: Instance> I2cSlave<'d, T> {
+impl<'d, T: Instance> I2cSlave<'d, T> {
     pub fn new(
         peri: impl Peripheral<P = T> + 'd,
         scl: impl Peripheral<P = impl SclPin<T>> + 'd,
@@ -71,23 +74,26 @@ impl <'d, T: Instance> I2cSlave<'d, T> {
         loop {
             match self.bus.listen(&mut buffer).await {
                 Ok(event) => match event {
-                    Command::GeneralCall(_) | Command::WriteRead(_) | Command::Read  => { warn!("Rv'd unexpected I2C") },
+                    Command::GeneralCall(_) | Command::WriteRead(_) | Command::Read => {
+                        warn!("Rv'd unexpected I2C")
+                    }
                     Command::Write(len) => {
-                        let key_update: KeyUpdate = match proto_impl::cs_decode(&mut buffer[..len]) {
+                        let key_update: KeyUpdate = match proto_impl::cs_decode(&mut buffer[..len])
+                        {
                             Ok(ku) => ku,
                             Err(e) => {
                                 defmt::error!("I2C Decode Error: {:?}", e);
-                                continue
+                                continue;
                             }
                         };
 
                         self.signal.signal(key_update);
-                    },
+                    }
                 },
                 Err(e) => {
                     defmt::error!("I2C Slave Error: {:?}", e);
-                    continue
-                },
+                    continue;
+                }
             }
         }
     }

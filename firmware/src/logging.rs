@@ -123,8 +123,7 @@ impl<'d, D: Driver<'d>> LoggerIf<'d, D> {
             let _ = self.sender.write_packet(&self.send_buf[..send_len]).await;
 
             // Add the ZLP to flush buffer if no more data is waiting
-            if is_all && send_len == MAX_PACKET_SIZE && is_empty
-            {
+            if is_all && send_len == MAX_PACKET_SIZE && is_empty {
                 // Since this is the error reporting mechanism, just fail silently
                 let _ = self.sender.write_packet(&[]).await;
             }

@@ -51,9 +51,7 @@ impl<'d, const R: usize, const C: usize> KeyMatrix<'d, R, C> {
             let update = KeyUpdate::from_vec(code_vec);
             self.signal.signal(update);
 
-
             Timer::after_millis(self.update_freq_ms.into()).await;
         }
     }
 }
-

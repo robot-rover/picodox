@@ -23,10 +23,21 @@ pub struct Uf2Block {
 }
 
 impl Uf2Block {
-    pub fn new(flags: Uf2Flags, offset: u32, payload: &[u8], block_num: u32, num_blocks: u32, extra_data: u32) -> Self {
+    pub fn new(
+        flags: Uf2Flags,
+        offset: u32,
+        payload: &[u8],
+        block_num: u32,
+        num_blocks: u32,
+        extra_data: u32,
+    ) -> Self {
         let payload_len = payload.len();
         if payload_len > UF2_PAYLOAD_LEN {
-            panic!("UF2 Block payload must be {} bytes or less, was {} bytes", UF2_PAYLOAD_LEN, payload.len());
+            panic!(
+                "UF2 Block payload must be {} bytes or less, was {} bytes",
+                UF2_PAYLOAD_LEN,
+                payload.len()
+            );
         }
 
         let mut block = Uf2Block {
