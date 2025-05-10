@@ -13,7 +13,7 @@ const LEFT_KEY_MATRIX: [[Key; NUM_COLS]; NUM_ROWS] = [
     // K8-K14
     [KEY_LEFTBRACE, KEY_T, KEY_R, KEY_E, KEY_W, KEY_Q, KEY_TAB],
     // K15-K21
-    [KEY_PAGEUP, KEY_G, KEY_F, KEY_D, KEY_S, KEY_A, KEY_ESC],
+    [KEY_PAGEUP, KEY_G, KEY_F, KEY_D, KEY_S, KEY_A, KEY_BACKSPACE],
     // K22-K28
     [
         KEY_PAGEDOWN,
@@ -26,12 +26,12 @@ const LEFT_KEY_MATRIX: [[Key; NUM_COLS]; NUM_ROWS] = [
     ],
     // K29-K35
     [
-        KEY_BACKSPACE,
+        KEY_ESC,
         KEY_MOD_LSHIFT,
         KEY_MOD_LCTRL,
         KEY_MOD_LALT,
-        KEY_NONE,
-        KEY_NONE,
+        KEY_BACKSLASH,
+        KEY_DELETE,
         KEY_MOD_LMETA,
     ],
 ];
