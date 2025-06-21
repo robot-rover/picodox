@@ -35,7 +35,7 @@ use embassy_sync::watch::Watch;
 use embassy_time::Timer;
 use i2c::{I2cMaster, I2cSlave};
 use key_hid::KeyboardIf;
-use key_map::{BasicKeymap, NUM_COLS, NUM_ROWS};
+use key_map::BasicKeymap;
 use key_matrix::KeyMatrix;
 use logging::{LoggerIf, LoggerRxSink};
 use neopixel::{Color, Neopixel};
@@ -47,7 +47,7 @@ use embassy_rp::pio::{self, Pio};
 use embassy_rp::usb::{self, Driver};
 use embassy_usb::class::{cdc_acm, hid};
 use embassy_usb::{Config, Handler, UsbDevice};
-use picodox_proto::KeyUpdate;
+use picodox_proto::{KeyUpdate, NUM_COLS, NUM_ROWS};
 use portable_atomic::AtomicBool;
 use serial::SerialIf;
 use static_cell::StaticCell;
@@ -211,7 +211,7 @@ async fn main(spawner: Spawner) {
             left_signal,
             right_signal,
             UPDATE_RATE_MS,
-            BasicKeymap {},
+            BasicKeymap::default(),
         ))
     } else {
         None

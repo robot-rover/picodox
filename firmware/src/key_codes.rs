@@ -1,12 +1,12 @@
 #![allow(dead_code)]
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Key {
     Mod(KeyMod),
     Code(KeyCode),
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct KeyMod(pub u8);
 
 const fn kmod(key_mod: u8) -> Key {
@@ -22,7 +22,7 @@ pub const KEY_MOD_RSHIFT: Key = kmod(0x20);
 pub const KEY_MOD_RALT: Key = kmod(0x40);
 pub const KEY_MOD_RMETA: Key = kmod(0x80);
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct KeyCode(pub u8);
 
 const fn kcode(key_code: u8) -> Key {

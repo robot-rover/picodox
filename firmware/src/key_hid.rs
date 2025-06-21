@@ -8,13 +8,13 @@ use embassy_usb::{
     driver::Driver,
     Builder,
 };
-use picodox_proto::KeyUpdate;
+use picodox_proto::{KeyState, KeyUpdate};
 use usbd_hid::descriptor::{KeyboardReport, SerializedDescriptor as _};
 
 use crate::util::MutexType;
 
 pub trait Keymap {
-    fn get_report(&mut self, left: &KeyUpdate, right: &KeyUpdate) -> KeyboardReport;
+    fn get_report(&mut self, state: &KeyState) -> KeyboardReport;
 }
 
 pub struct KeyboardIf<'d, D: Driver<'d>, K: Keymap> {
@@ -58,6 +58,7 @@ impl<'d, D: Driver<'d>, K: Keymap> KeyboardIf<'d, D, K> {
         let in_fut = async {
             let mut left = KeyUpdate::no_keys();
             let mut right = KeyUpdate::no_keys();
+            let mut state;
 
             loop {
                 if let Some(new_left) = self.left_signal.try_take() {
@@ -70,7 +71,8 @@ impl<'d, D: Driver<'d>, K: Keymap> KeyboardIf<'d, D, K> {
                     right = new_right;
                 }
 
-                let report = self.keymap.get_report(&left, &right);
+                state = KeyState::from_update(&left, &right);
+                let report = self.keymap.get_report(&state);
 
                 match self.writer.write_serialize(&report).await {
                     Ok(()) => {}

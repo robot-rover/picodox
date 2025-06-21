@@ -286,7 +286,7 @@ mod tests {
 
     fn key_cases() -> Vec<KeyUpdate> {
         vec![
-            KeyUpdate::keys([MatrixLoc::new(1, 2), MatrixLoc::new(20, 13)]),
+            KeyUpdate::keys([MatrixLoc::new(1, 2), MatrixLoc::new(4, 6)]),
             KeyUpdate::no_keys(),
         ]
     }

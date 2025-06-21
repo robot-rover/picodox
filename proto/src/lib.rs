@@ -73,21 +73,19 @@ pub struct MatrixLoc(u8);
 
 impl MatrixLoc {
     pub fn new(row: usize, col: usize) -> Self {
-        MatrixLoc(((col << 4) | row) as u8)
-    }
-
-    pub fn row(&self) -> usize {
-        (self.0 & 0xF) as usize
-    }
-
-    pub fn col(&self) -> usize {
-        ((self.0 & 0xF0) >> 4) as usize
+        assert!(row < NUM_ROWS);
+        assert!(col < NUM_COLS);
+        MatrixLoc((row * NUM_COLS + col) as u8)
     }
 }
 
-pub const MAX_KEYS: usize = 35;
+pub const NUM_ROWS: usize = 5;
+pub const NUM_COLS: usize = 7;
+pub const NUM_HANDS: usize = 2;
+pub const NUM_KEYS: usize = NUM_ROWS * NUM_COLS;
+
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, MaxSize)]
-pub struct KeyUpdate(pub Vec<MatrixLoc, MAX_KEYS>);
+pub struct KeyUpdate(pub Vec<MatrixLoc, NUM_KEYS>);
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, MaxSize)]
 pub enum KeyResponse {
@@ -103,12 +101,32 @@ impl KeyUpdate {
         KeyUpdate(vec)
     }
 
-    pub fn from_vec(vec: Vec<MatrixLoc, MAX_KEYS>) -> Self {
+    pub fn from_vec(vec: Vec<MatrixLoc, NUM_KEYS>) -> Self {
         KeyUpdate(vec)
     }
 
     pub const fn no_keys() -> Self {
         KeyUpdate(Vec::new())
+    }
+}
+
+pub struct KeyState(pub [bool; NUM_KEYS * NUM_HANDS]);
+
+impl KeyState {
+    pub fn from_update(left: &KeyUpdate, right: &KeyUpdate) -> Self {
+        let mut result = KeyState::no_keys();
+        for key in &left.0 {
+            result.0[key.0 as usize] = true;
+        }
+        for key in &right.0 {
+            result.0[key.0 as usize + NUM_KEYS] = true;
+        }
+
+        result
+    }
+
+    pub const fn no_keys() -> Self {
+        KeyState([false; NUM_KEYS * NUM_HANDS])
     }
 }
 
