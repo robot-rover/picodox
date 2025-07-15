@@ -58,7 +58,7 @@ const KEY_MATRIX: [Key; 2 * NUM_KEYS] = [
     KEY_C,
     KEY_X,
     KEY_Z,
-    KEY_NONE,
+    KEY_MOD_RSHIFT,
     // K29-K35
     KEY_ESC,
     KEY_MOD_LSHIFT,
@@ -99,7 +99,7 @@ const KEY_MATRIX: [Key; 2 * NUM_KEYS] = [
     KEY_COMMA,
     KEY_DOT,
     KEY_SLASH,
-    KEY_NONE,
+    KEY_MOD_RSHIFT,
     // K29-K35
     KEY_ENTER,
     KEY_SPACE,
