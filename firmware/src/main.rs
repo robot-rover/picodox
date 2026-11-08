@@ -62,7 +62,7 @@ bind_interrupts!(struct Irqs {
 static INITIATE_SHUTDOWN: Watch<CriticalSectionRawMutex, (), 1> = Watch::new();
 static USB_SHUTDOWN: Signal<CriticalSectionRawMutex, ()> = Signal::new();
 
-const UPDATE_RATE_MS: u32 = 20;
+const UPDATE_RATE_MS: u32 = 1;
 
 #[allow(dead_code)]
 #[derive(PartialEq, Eq)]

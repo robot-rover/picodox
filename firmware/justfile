@@ -3,13 +3,9 @@ compile:
   cargo build --release
   elf2uf2-rs {{ BINARY }} {{ BINARY }}.uf2
 
-HAND := "left"
-
-HAND_FEAT := if HAND == "left" { "" } else if HAND == "right" { "--features=right" } else { error("HAND must be left or right") }
-
 flash:
-  -cd ../cli && cargo run dfu
-  cargo build --release {{ HAND_FEAT }}
+  # -cd ../cli && cargo run dfu
+  cargo build --release
   picotool load -t elf {{ BINARY }}
   picotool reboot
 
