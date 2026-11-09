@@ -77,6 +77,14 @@ impl MatrixLoc {
         assert!(col < NUM_COLS);
         MatrixLoc((row * NUM_COLS + col) as u8)
     }
+
+    pub fn row(&self) -> u8 {
+        self.0 / (NUM_COLS as u8)
+    }
+
+    pub fn col(&self) -> u8 {
+        self.0 % (NUM_COLS as u8)
+    }
 }
 
 pub const NUM_ROWS: usize = 5;

@@ -129,7 +129,6 @@ impl Keymap for BasicKeymap {
         let mut modifier = 0u8;
 
         let nav_pressed = state.0[r(31)];
-        info!("Nav Pressed: {}", nav_pressed);
 
         let matrix = if nav_pressed {
             &NAV_MATRIX

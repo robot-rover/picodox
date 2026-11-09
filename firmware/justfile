@@ -4,7 +4,7 @@ compile:
   elf2uf2-rs {{ BINARY }} {{ BINARY }}.uf2
 
 flash:
-  # -cd ../cli && cargo run dfu
+  -cd ../cli && cargo run dfu
   cargo build --release
   picotool load -t elf {{ BINARY }}
   picotool reboot

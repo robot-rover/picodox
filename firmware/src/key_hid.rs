@@ -60,15 +60,41 @@ impl<'d, D: Driver<'d>, K: Keymap> KeyboardIf<'d, D, K> {
             let mut right = KeyUpdate::no_keys();
             let mut state;
 
-            loop {
-                if let Some(new_left) = self.left_signal.try_take() {
-                    info!("Left Update: {}", new_left.0.len());
-                    left = new_left;
-                }
+            let mut index: usize = 0;
 
-                if let Some(new_right) = self.right_signal.try_take() {
-                    info!("Right Update: {}", new_right.0.len());
+            loop {
+                let l_update = if let Some(new_left) = self.left_signal.try_take() {
+                    let update = new_left != left;
+                    if update {
+                        info!("Left Update:");
+                        for key in &new_left.0 {
+                            info!(" - {},{}", key.row(), key.col());
+                        }
+                        if new_left.0.is_empty() {
+                            info!(" - None");
+                        }
+                    };
+                    left = new_left;
+                    update
+                } else { false };
+
+                let r_update = if let Some(new_right) = self.right_signal.try_take() {
+                    let update = new_right != right;
+                    if update {
+                        info!("Right Update:");
+                        for key in &new_right.0 {
+                            info!(" - {},{}", key.row(), key.col());
+                        }
+                        if new_right.0.is_empty() {
+                            info!(" - None");
+                        }
+                    };
                     right = new_right;
+                    update
+                } else { false };
+
+                if l_update || r_update {
+                    info!("Update {} finished", index);
                 }
 
                 state = KeyState::from_update(&left, &right);
@@ -80,6 +106,7 @@ impl<'d, D: Driver<'d>, K: Keymap> KeyboardIf<'d, D, K> {
                 };
 
                 Timer::after_millis(self.update_freq_ms.into()).await;
+                index += 1;
             }
         };
 
