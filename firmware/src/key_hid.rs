@@ -38,7 +38,7 @@ impl<'d, D: Driver<'d>, K: Keymap> KeyboardIf<'d, D, K> {
         let config = Config {
             report_descriptor: KeyboardReport::desc(),
             request_handler: None,
-            poll_ms: 60,
+            poll_ms: 1,
             max_packet_size: 64,
         };
         let hid = HidReaderWriter::<_, 1, 8>::new(builder, state, config);
